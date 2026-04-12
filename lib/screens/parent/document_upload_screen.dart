@@ -10,6 +10,7 @@ import '../../services/firestore_service.dart';
 import '../../services/storage_service.dart';
 import '../../models/document_model.dart';
 import '../../core/constants.dart';
+import '../../core/permission_handler.dart';
 
 class DocumentUploadScreen extends StatefulWidget {
   const DocumentUploadScreen({super.key});
@@ -81,6 +82,30 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
     );
 
     if (source == null) return;
+
+    // Check permissions
+    bool granted = false;
+    if (source == ImageSource.camera) {
+      granted = await AppPermissions.requestCamera();
+    } else {
+      granted = await AppPermissions.requestPhotos();
+    }
+
+    if (!granted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Permission denied. Please enable in Settings.'),
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: 'Settings',
+              onPressed: () => AppPermissions.showSettingsDialog(),
+            ),
+          ),
+        );
+      }
+      return;
+    }
 
     final XFile? pickedFile = await picker.pickImage(source: source);
     if (pickedFile == null) return;

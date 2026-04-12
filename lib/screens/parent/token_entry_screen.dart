@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import '../../core/permission_handler.dart';
 
 class TokenEntryScreen extends StatefulWidget {
   const TokenEntryScreen({super.key});
@@ -79,7 +80,26 @@ class _TokenEntryScreenState extends State<TokenEntryScreen> {
     );
   }
 
-  void _openCameraScanner() {
+  Future<void> _openCameraScanner() async {
+    final granted = await AppPermissions.requestCamera();
+    if (!granted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Camera permission is required to scan QR codes.'),
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: 'Settings',
+              onPressed: () => AppPermissions.showSettingsDialog(),
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
+    
     Navigator.of(context).push(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
@@ -96,6 +116,23 @@ class _TokenEntryScreenState extends State<TokenEntryScreen> {
   }
 
   Future<void> _scanFromGallery() async {
+    final granted = await AppPermissions.requestPhotos();
+    if (!granted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Photo library access is required to scan images.'),
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: 'Settings',
+              onPressed: () => AppPermissions.showSettingsDialog(),
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
     final picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
     

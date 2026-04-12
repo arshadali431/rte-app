@@ -16,6 +16,7 @@ import '../../models/child_model.dart';
 import '../../models/document_model.dart';
 import '../../core/utils.dart';
 import '../../core/constants.dart';
+import '../../core/permission_handler.dart';
 
 class TokenDetailScreen extends StatefulWidget {
   final TokenModel token;
@@ -102,6 +103,30 @@ class _TokenDetailScreenState extends State<TokenDetailScreen> {
     );
 
     if (source == null) return;
+
+    // Check permissions
+    bool granted = false;
+    if (source == ImageSource.camera) {
+      granted = await AppPermissions.requestCamera();
+    } else {
+      granted = await AppPermissions.requestPhotos();
+    }
+
+    if (!granted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Permission denied. Please enable in Settings.'),
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: 'Settings',
+              onPressed: () => AppPermissions.showSettingsDialog(),
+            ),
+          ),
+        );
+      }
+      return;
+    }
 
     final XFile? pickedFile = await picker.pickImage(source: source);
     if (pickedFile == null) return;
