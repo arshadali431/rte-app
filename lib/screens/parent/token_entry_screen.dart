@@ -81,8 +81,16 @@ class _TokenEntryScreenState extends State<TokenEntryScreen> {
 
   void _openCameraScanner() {
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const _TokenQrScanner(),
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            const _TokenQrScanner(),
+        transitionDuration: const Duration(milliseconds: 200),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(
+            opacity: CurveTween(curve: Curves.easeInOut).animate(animation),
+            child: child,
+          );
+        },
       ),
     ).then((result) => _processQrResult(result));
   }

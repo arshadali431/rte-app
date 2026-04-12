@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../screens/splash_screen.dart';
 import '../screens/role_selection_screen.dart';
@@ -23,89 +24,152 @@ class AppRouter {
       GoRoute(
         path: '/',
         name: 'splash',
-        builder: (context, state) => const SplashScreen(),
+        pageBuilder: (context, state) => _buildPage(
+          state: state,
+          child: const SplashScreen(),
+        ),
       ),
       GoRoute(
         path: '/role',
         name: 'role',
-        builder: (context, state) => const RoleSelectionScreen(),
+        pageBuilder: (context, state) => _buildPage(
+          state: state,
+          child: const RoleSelectionScreen(),
+        ),
       ),
       // Parent Path
       GoRoute(
         path: '/parent/token-entry',
         name: 'token-entry',
-        builder: (context, state) => const TokenEntryScreen(),
+        pageBuilder: (context, state) => _buildPage(
+          state: state,
+          child: const TokenEntryScreen(),
+        ),
       ),
       GoRoute(
         path: '/parent/dashboard',
         name: 'parent-dashboard',
-        builder: (context, state) => const ParentDashboardScreen(),
+        pageBuilder: (context, state) => _buildPage(
+          state: state,
+          child: const ParentDashboardScreen(),
+        ),
       ),
       GoRoute(
         path: '/parent/child-profile',
         name: 'child-profile',
-        builder: (context, state) => const ChildProfileScreen(),
+        pageBuilder: (context, state) => _buildPage(
+          state: state,
+          child: const ChildProfileScreen(),
+        ),
       ),
       GoRoute(
         path: '/parent/documents',
         name: 'parent-documents',
-        builder: (context, state) => const DocumentUploadScreen(),
+        pageBuilder: (context, state) => _buildPage(
+          state: state,
+          child: const DocumentUploadScreen(),
+        ),
       ),
       GoRoute(
         path: '/parent/status',
         name: 'parent-status',
-        builder: (context, state) {
+        pageBuilder: (context, state) {
           final tokenId = state.extra as String;
-          return ApplicationStatusScreen(tokenId: tokenId);
+          return _buildPage(
+            state: state,
+            child: ApplicationStatusScreen(tokenId: tokenId),
+          );
         },
       ),
       // Office Path
       GoRoute(
         path: '/office/login',
         name: 'office-login',
-        builder: (context, state) => const OfficeLoginScreen(),
+        pageBuilder: (context, state) => _buildPage(
+          state: state,
+          child: const OfficeLoginScreen(),
+        ),
       ),
       GoRoute(
         path: '/office/dashboard',
         name: 'office-dashboard',
-        builder: (context, state) => const OfficeDashboardScreen(),
+        pageBuilder: (context, state) => _buildPage(
+          state: state,
+          child: const OfficeDashboardScreen(),
+        ),
       ),
       GoRoute(
         path: '/office/new-token',
         name: 'new-token',
-        builder: (context, state) => const NewTokenScreen(),
+        pageBuilder: (context, state) => _buildPage(
+          state: state,
+          child: const NewTokenScreen(),
+        ),
       ),
       GoRoute(
         path: '/office/scan',
         name: 'office-scan',
-        builder: (context, state) => const ScanQrScreen(),
+        pageBuilder: (context, state) => _buildPage(
+          state: state,
+          child: const ScanQrScreen(),
+        ),
       ),
       GoRoute(
         path: '/office/generated-token',
         name: 'generated-token',
-        builder: (context, state) {
+        pageBuilder: (context, state) {
           final data = state.extra as Map<String, dynamic>;
-          return GeneratedTokenScreen(tokenData: data);
+          return _buildPage(
+            state: state,
+            child: GeneratedTokenScreen(tokenData: data),
+          );
         },
       ),
       GoRoute(
         path: '/office/token-detail',
         name: 'token-detail',
-        builder: (context, state) {
+        pageBuilder: (context, state) {
           final token = state.extra as TokenModel;
-          return TokenDetailScreen(token: token);
+          return _buildPage(
+            state: state,
+            child: TokenDetailScreen(token: token),
+          );
         },
       ),
       GoRoute(
         path: '/office/search',
         name: 'office-search',
-        builder: (context, state) => const SearchApplicationScreen(),
+        pageBuilder: (context, state) => _buildPage(
+          state: state,
+          child: const SearchApplicationScreen(),
+        ),
       ),
       GoRoute(
         path: '/rte/status-checker',
         name: 'rte-status-checker',
-        builder: (context, state) => const RteStatusScreen(),
+        pageBuilder: (context, state) => _buildPage(
+          state: state,
+          child: const RteStatusScreen(),
+        ),
       ),
     ],
   );
+
+  static CustomTransitionPage _buildPage({
+    required GoRouterState state,
+    required Widget child,
+  }) {
+    return CustomTransitionPage(
+      key: state.pageKey,
+      child: child,
+      transitionDuration: const Duration(milliseconds: 200),
+      reverseTransitionDuration: const Duration(milliseconds: 200),
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        return FadeTransition(
+          opacity: CurveTween(curve: Curves.easeInOut).animate(animation),
+          child: child,
+        );
+      },
+    );
+  }
 }

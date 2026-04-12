@@ -151,7 +151,19 @@ class FirestoreService {
         .delete();
   }
 
-  // ────────── Search ──────────
+  // ────────── Search & Recent ──────────
+  
+  Future<List<TokenModel>> getRecentTokens(int limit) async {
+    final snapshot = await _db
+        .collection(AppConstants.kTokensCollection)
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .get();
+
+    return snapshot.docs
+        .map((doc) => TokenModel.fromFirestore(doc.data(), doc.id))
+        .toList();
+  }
 
   Future<List<TokenModel>> searchByMobile(String mobile) async {
     final query = await _db.collection(AppConstants.kTokensCollection)

@@ -18,6 +18,36 @@ class _SearchApplicationScreenState extends State<SearchApplicationScreen> {
   bool _isLoading = false;
   List<TokenModel> _results = [];
   bool _hasSearched = false;
+  List<TokenModel> _recentTokens = [];
+  bool _recentLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRecentTokens();
+    _searchController.addListener(() {
+      if (_searchController.text.isEmpty && _hasSearched) {
+        setState(() {
+          _hasSearched = false;
+          _results = [];
+        });
+      }
+    });
+  }
+
+  Future<void> _loadRecentTokens() async {
+    try {
+      final recent = await FirestoreService().getRecentTokens(5);
+      if (mounted) {
+        setState(() {
+          _recentTokens = recent;
+          _recentLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _recentLoading = false);
+    }
+  }
 
   Future<void> _performSearch() async {
     final query = _searchController.text.trim();
@@ -161,7 +191,7 @@ class _SearchApplicationScreenState extends State<SearchApplicationScreen> {
                   : _results.isEmpty
                       ? _hasSearched 
                           ? _buildEmptyState() 
-                          : const SizedBox()
+                          : _buildRecentSection()
                       : ListView.builder(
                           padding: const EdgeInsets.symmetric(horizontal: 24),
                           itemCount: _results.length,
@@ -276,5 +306,42 @@ class _SearchApplicationScreenState extends State<SearchApplicationScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildRecentSection() {
+    return _recentLoading
+        ? const Center(child: CircularProgressIndicator(color: Color(0xFF81D4FA)))
+        : _recentTokens.isEmpty
+            ? Center(child: Text('No tokens yet', style: GoogleFonts.outfit(color: Colors.white24)))
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.history_rounded, color: Colors.white38, size: 16),
+                        const SizedBox(width: 8),
+                        Text(
+                          'RECENTLY ADDED',
+                          style: GoogleFonts.outfit(
+                            color: Colors.white38,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      itemCount: _recentTokens.length,
+                      itemBuilder: (context, index) => _buildResultCard(_recentTokens[index]),
+                    ),
+                  ),
+                ],
+              );
   }
 }

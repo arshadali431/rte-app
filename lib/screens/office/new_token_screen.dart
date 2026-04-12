@@ -113,25 +113,6 @@ class _NewTokenScreenState extends State<NewTokenScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 20),
-                Text(
-                  'Generate Token',
-                  style: GoogleFonts.outfit(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Fill details to generate a new token for the family',
-                  style: GoogleFonts.outfit(
-                    fontSize: 16,
-                    color: Colors.white54,
-                  ),
-                ),
-                
-                const SizedBox(height: 32),
 
                 // Realtime Token Number Display Card
                 Container(

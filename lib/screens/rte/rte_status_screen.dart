@@ -272,9 +272,18 @@ class _RteStatusScreenState extends State<RteStatusScreen> {
       if (mounted) {
         _saveToHistory(appController.text.trim(), dobController.text.trim());
         FocusScope.of(context).unfocus();
-        await Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => RteResultScreen(data: data)),
+        await Navigator.of(context).push(
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                RteResultScreen(data: data),
+            transitionDuration: const Duration(milliseconds: 200),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return FadeTransition(
+                opacity: CurveTween(curve: Curves.easeInOut).animate(animation),
+                child: child,
+              );
+            },
+          ),
         );
         if (mounted) {
           setState(() {

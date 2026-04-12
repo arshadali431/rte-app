@@ -35,6 +35,7 @@ class MyApp extends StatelessWidget {
       title: 'RTE Token Manager',
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.dark, // Force dark mode to avoid white flashes
       routerConfig: AppRouter.router,
     );
   }
