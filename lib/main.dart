@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'splash_screen.dart';
 
 class MyHttpOverrides extends HttpOverrides {
@@ -12,8 +14,11 @@ class MyHttpOverrides extends HttpOverrides {
   }
 }
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   HttpOverrides.global = MyHttpOverrides();
   GoogleFonts.config.allowRuntimeFetching = true;
   runApp(const MyApp());
