@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'core/utils.dart';
 import 'package:dio/dio.dart';
 import 'package:html/parser.dart' as parser;
 import 'package:google_fonts/google_fonts.dart';
@@ -521,30 +522,4 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class DateInputFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    if (newValue.text.length < oldValue.text.length) {
-      return newValue;
-    }
 
-    String text = newValue.text.replaceAll('-', '');
-    String formatted = "";
-
-    for (int i = 0; i < text.length; i++) {
-      formatted += text[i];
-      if (i == 1 || i == 3) {
-        if (formatted.length < 10) formatted += "-";
-      }
-      if (formatted.length >= 10) break;
-    }
-
-    return TextEditingValue(
-      text: formatted,
-      selection: TextSelection.collapsed(offset: formatted.length),
-    );
-  }
-}

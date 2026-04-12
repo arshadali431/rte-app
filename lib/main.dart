@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
-import 'splash_screen.dart';
+import 'core/router.dart';
+import 'core/theme.dart';
 
 class MyHttpOverrides extends HttpOverrides {
   @override
@@ -29,26 +30,12 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return MaterialApp.router(
       debugShowCheckedModeBanner: false,
-      title: 'RTE Status Checker',
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF00796B),
-          brightness: Brightness.light,
-        ),
-        textTheme: GoogleFonts.outfitTextTheme(),
-      ),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF00796B),
-          brightness: Brightness.dark,
-        ),
-        textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme),
-      ),
-      home: const SplashScreen(),
+      title: 'RTE Token Manager',
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      routerConfig: AppRouter.router,
     );
   }
 }
