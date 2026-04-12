@@ -68,7 +68,10 @@ class AppRouter {
       GoRoute(
         path: '/parent/status',
         name: 'parent-status',
-        builder: (context, state) => const ApplicationStatusScreen(),
+        builder: (context, state) {
+          final tokenId = state.extra as String;
+          return ApplicationStatusScreen(tokenId: tokenId);
+        },
       ),
       // Office Path (Accessible directly)
       GoRoute(
