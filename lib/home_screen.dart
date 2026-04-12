@@ -15,7 +15,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final Dio dio = Dio();
-  final TextEditingController appController = TextEditingController();
+  final TextEditingController appController =
+      TextEditingController(text: 'GJ/2026-27/SRC/');
   final TextEditingController dobController = TextEditingController();
 
   bool loading = false;
