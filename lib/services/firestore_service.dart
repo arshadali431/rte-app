@@ -167,4 +167,18 @@ class FirestoreService {
         .get();
     return query.docs.map((doc) => TokenModel.fromFirestore(doc.data(), doc.id)).toList();
   }
+
+  // ────────── Admin Auth ──────────
+
+  Future<bool> verifyAdmin(String username, String password) async {
+    try {
+      final snap = await _db.collection(AppConstants.kAdminCollection).doc(AppConstants.kAdminDoc).get();
+      if (!snap.exists) return false;
+      
+      final data = snap.data();
+      return (data?['username'] == username && data?['password'] == password);
+    } catch (e) {
+      return false;
+    }
+  }
 }

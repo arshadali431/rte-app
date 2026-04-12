@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'models.dart';
+import '../../models.dart';
 
-class ResultScreen extends StatelessWidget {
+class RteResultScreen extends StatelessWidget {
   final RteApplicationData data;
 
-  const ResultScreen({super.key, required this.data});
+  const RteResultScreen({super.key, required this.data});
 
   @override
   Widget build(BuildContext context) {

@@ -64,7 +64,7 @@ class RoleSelectionScreen extends StatelessWidget {
                   title: 'Office Staff',
                   subtitle: 'Manage tokens and applications',
                   icon: Icons.admin_panel_settings_rounded,
-                  onTap: () => context.go('/office/dashboard'),
+                  onTap: () => context.go('/office/login'),
                 ),
               ],
             ),

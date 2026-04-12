@@ -9,6 +9,8 @@ class AppConstants {
   
   // Document Names
   static const String kTokenCounterDoc = 'token_counter';
+  static const String kAdminCollection = 'rte-2026-27';
+  static const String kAdminDoc = 'admin';
 
   // Statuses
   static const String statusPending = 'pending';

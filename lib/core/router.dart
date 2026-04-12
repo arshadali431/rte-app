@@ -12,27 +12,13 @@ import '../screens/office/scan_qr_screen.dart';
 import '../screens/office/search_application_screen.dart';
 import '../screens/office/generated_token_screen.dart';
 import '../screens/office/token_detail_screen.dart';
+import '../screens/office/office_login_screen.dart';
+import '../screens/rte/rte_status_screen.dart';
 import '../models/token_model.dart';
 
 class AppRouter {
   static final router = GoRouter(
     initialLocation: '/',
-    redirect: (context, state) {
-      final parentRoutesRequiringToken = [
-        '/parent/dashboard',
-        '/parent/child-profile',
-        '/parent/documents',
-        '/parent/status',
-      ];
-
-      if (parentRoutesRequiringToken.contains(state.matchedLocation)) {
-        final tokenId = state.extra as String?;
-        if (tokenId == null || tokenId.isEmpty) {
-          return '/role';
-        }
-      }
-      return null;
-    },
     routes: [
       GoRoute(
         path: '/',
@@ -73,7 +59,12 @@ class AppRouter {
           return ApplicationStatusScreen(tokenId: tokenId);
         },
       ),
-      // Office Path (Accessible directly)
+      // Office Path
+      GoRoute(
+        path: '/office/login',
+        name: 'office-login',
+        builder: (context, state) => const OfficeLoginScreen(),
+      ),
       GoRoute(
         path: '/office/dashboard',
         name: 'office-dashboard',
@@ -109,6 +100,11 @@ class AppRouter {
         path: '/office/search',
         name: 'office-search',
         builder: (context, state) => const SearchApplicationScreen(),
+      ),
+      GoRoute(
+        path: '/rte/status-checker',
+        name: 'rte-status-checker',
+        builder: (context, state) => const RteStatusScreen(),
       ),
     ],
   );

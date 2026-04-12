@@ -46,21 +46,31 @@ class _SplashScreenState extends State<SplashScreen>
     );
 
     _ctrl.forward();
-    _checkNavigation();
+    _navigateToNext();
   }
 
-  Future<void> _checkNavigation() async {
-    await Future.delayed(const Duration(milliseconds: 3200));
+  Future<void> _navigateToNext() async {
+    await Future.delayed(const Duration(milliseconds: 2500));
     if (!mounted) return;
 
     final prefs = await SharedPreferences.getInstance();
-    final tokenId = prefs.getString('token_id');
 
+    // Check 1: Parent token
+    final tokenId = prefs.getString('token_id');
     if (tokenId != null && tokenId.isNotEmpty) {
       context.go('/parent/dashboard', extra: tokenId);
-    } else {
-      context.go('/role');
+      return;
     }
+
+    // Check 2: Office login
+    final isOfficeLoggedIn = prefs.getBool('is_office_logged_in') ?? false;
+    if (isOfficeLoggedIn) {
+      context.go('/office/dashboard');
+      return;
+    }
+
+    // Default: Role selection
+    context.go('/role');
   }
 
   @override

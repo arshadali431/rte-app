@@ -1,20 +1,22 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'core/utils.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../core/utils.dart';
 import 'package:dio/dio.dart';
 import 'package:html/parser.dart' as parser;
 import 'package:google_fonts/google_fonts.dart';
-import 'models.dart';
-import 'result_screen.dart';
+import '../../models.dart';
+import 'rte_result_screen.dart';
 
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+class RteStatusScreen extends StatefulWidget {
+  const RteStatusScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<RteStatusScreen> createState() => _RteStatusScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _RteStatusScreenState extends State<RteStatusScreen> {
   final Dio dio = Dio();
   final TextEditingController appController =
       TextEditingController(text: 'GJ/2026-27/SRC/');
@@ -22,8 +24,173 @@ class _HomeScreenState extends State<HomeScreen> {
 
   bool loading = false;
   String? errorMessage;
+  List<Map<String, String>> _history = [];
 
-  // ── Network Logic (unchanged from original) ──────────────────────────
+  @override
+  void initState() {
+    super.initState();
+    _loadHistory();
+  }
+
+  Future<void> _loadHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? historyJson = prefs.getString('rte_check_history');
+    if (historyJson != null) {
+      setState(() {
+        _history = List<Map<String, String>>.from(
+          json.decode(historyJson).map((item) => Map<String, String>.from(item)),
+        );
+      });
+    }
+  }
+
+  Future<void> _saveToHistory(String appNum, String dob) async {
+    final prefs = await SharedPreferences.getInstance();
+    final now = DateTime.now();
+    final String time = "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
+    
+    // Remove if already exists to move to top
+    _history.removeWhere((item) => item['appNum'] == appNum);
+    
+    _history.insert(0, {
+      'appNum': appNum, 
+      'dob': dob,
+      'time': time,
+    });
+    
+    // Keep last 10
+    if (_history.length > 10) _history.removeLast();
+
+    await prefs.setString('rte_check_history', json.encode(_history));
+    setState(() {});
+  }
+
+  Future<void> _removeFromHistory(int index) async {
+    final prefs = await SharedPreferences.getInstance();
+    _history.removeAt(index);
+    await prefs.setString('rte_check_history', json.encode(_history));
+    setState(() {});
+  }
+
+  void _showHistory() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A3535),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => Container(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Recent Checks',
+                    style: GoogleFonts.outfit(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  if (_history.isNotEmpty)
+                    TextButton(
+                      onPressed: () async {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.remove('rte_check_history');
+                        setState(() => _history = []);
+                        setModalState(() {});
+                        if (mounted) Navigator.pop(context);
+                      },
+                      child: Text('Clear All', style: TextStyle(color: Colors.redAccent.withOpacity(0.7))),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (_history.isEmpty)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Column(
+                      children: [
+                        Icon(Icons.history_rounded, color: Colors.white12, size: 48),
+                        const SizedBox(height: 12),
+                        Text(
+                          'No check history yet',
+                          style: GoogleFonts.outfit(color: Colors.white24),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: _history.length,
+                    itemBuilder: (context, index) {
+                      final item = _history[index];
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.04),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.white.withOpacity(0.05)),
+                        ),
+                        child: ListTile(
+                          onTap: () {
+                            setState(() {
+                              appController.text = item['appNum']!;
+                              dobController.text = item['dob']!;
+                            });
+                            Navigator.pop(context);
+                          },
+                          leading: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(Icons.tag_rounded, color: Colors.blue[300], size: 20),
+                          ),
+                          title: Text(
+                            item['appNum']!,
+                            style: GoogleFonts.outfit(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          subtitle: Text(
+                            'DOB: ${item['dob']} • at ${item['time']}',
+                            style: GoogleFonts.outfit(
+                              color: Colors.white38,
+                              fontSize: 12,
+                            ),
+                          ),
+                          trailing: IconButton(
+                            icon: Icon(Icons.close_rounded, color: Colors.white24, size: 18),
+                            onPressed: () async {
+                              await _removeFromHistory(index);
+                              setModalState(() {});
+                            },
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> fetchStatus() async {
     FocusScope.of(context).unfocus();
     if (appController.text.isEmpty || dobController.text.isEmpty) {
@@ -52,7 +219,6 @@ class _HomeScreenState extends State<HomeScreen> {
       String cookieString = rawCookies.map((e) => e.split(";")[0]).join("; ");
       debugPrint("Extracted Cookies: $cookieString");
 
-      // Optimization: Using Regex for token extraction is much faster than parsing the entire DOM
       final tokenMatch = RegExp(
               r'name="__RequestVerificationToken".*?value="([^"]+)"',
               dotAll: true)
@@ -104,11 +270,19 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() => loading = false);
 
       if (mounted) {
+        _saveToHistory(appController.text.trim(), dobController.text.trim());
         FocusScope.of(context).unfocus();
-        Navigator.push(
+        await Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => ResultScreen(data: data)),
+          MaterialPageRoute(builder: (_) => RteResultScreen(data: data)),
         );
+        if (mounted) {
+          setState(() {
+            appController.text = 'GJ/2026-27/SRC/';
+            dobController.clear();
+          });
+          FocusScope.of(context).unfocus();
+        }
       }
     } catch (e) {
       setState(() {
@@ -122,8 +296,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   RteApplicationData _parseResponseNew(String html) {
     final doc = parser.parse(html);
-
-    // ── 1. Application Number ──────────────────────────────────────────
     String appNum = appController.text.trim();
     final cardHeader = doc.querySelector('.card-header');
     if (cardHeader != null) {
@@ -133,7 +305,6 @@ class _HomeScreenState extends State<HomeScreen> {
       if (match != null) appNum = match.group(1)!.trim();
     }
 
-    // ── 2. Status Message ──────────────────────────────────────────────
     String statusMsg = '';
     final allFieldsets = doc.querySelectorAll('fieldset');
     for (final fs in allFieldsets) {
@@ -148,7 +319,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     if (statusMsg.isEmpty) statusMsg = 'No status information found.';
 
-    // ── 3. Sections ────────────────────────────────────────────────────
     Map<String, Map<String, String>> sections = {};
     const tableFieldsets = {'Selected Schools', 'Uploaded Documents'};
     const skipLegendContains = 'અરજીની સ્થિતિ';
@@ -184,7 +354,6 @@ class _HomeScreenState extends State<HomeScreen> {
       if (sectionData.isNotEmpty) sections[sectionTitle] = sectionData;
     }
 
-    // ── 4. Schools Table ───────────────────────────────────────────────
     List<List<String>> schools = [];
     for (final fs in allFieldsets) {
       final legend = fs.querySelector('legend');
@@ -203,7 +372,6 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
 
-    // ── 5. Documents Table ─────────────────────────────────────────────
     List<List<String>> documents = [];
     for (final fs in allFieldsets) {
       final legend = fs.querySelector('legend');
@@ -229,10 +397,6 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
 
-    debugPrint(
-      '✅ Parsed: appNum=$appNum | status=${statusMsg.substring(0, statusMsg.length.clamp(0, 40))} | sections=${sections.keys.toList()} | schools=${schools.length} | docs=${documents.length}',
-    );
-
     return RteApplicationData(
       applicationNumber: appNum,
       statusMessage: statusMsg,
@@ -248,10 +412,28 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── UI ──────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: Text('RTE Status Checker',
+            style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+        backgroundColor: const Color(0xFF0D2B2B),
+        foregroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        actions: [
+          IconButton(
+            onPressed: _showHistory,
+            icon: const Icon(Icons.history_rounded, color: Colors.white70),
+            tooltip: 'Recent Checks',
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
       body: Container(
         width: double.infinity,
         height: double.infinity,
@@ -260,7 +442,7 @@ class _HomeScreenState extends State<HomeScreen> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Color(0xFF0D2B2B), // very dark teal
+              Color(0xFF0D2B2B),
               Color(0xFF122929),
               Color(0xFF0A1A1A),
             ],
@@ -272,39 +454,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // ── Icon ──────────────────────────────────────────
-                Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white.withOpacity(0.1),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.2),
-                      width: 1.5,
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.school_rounded,
-                    size: 32,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 10),
-
-                // ── App Name ──────────────────────────────────────
-                Text(
-                  'RTE Status Checker',
-                  style: GoogleFonts.outfit(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    letterSpacing: 0.5,
-                  ),
-                ),
                 const SizedBox(height: 20),
-
-                // ── Credentials Card ──────────────────────────────
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
@@ -332,8 +482,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                       const SizedBox(height: 20),
-
-                      // Application Number
                       _buildDarkTextField(
                         controller: appController,
                         label: "Application Number",
@@ -341,8 +489,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         icon: Icons.tag_rounded,
                       ),
                       const SizedBox(height: 16),
-
-                      // Date of Birth
                       _buildDarkTextField(
                         controller: dobController,
                         label: "Date of Birth",
@@ -352,8 +498,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         inputFormatters: [DateInputFormatter()],
                       ),
                       const SizedBox(height: 25),
-
-                      // Button / Loader
                       if (loading)
                         const Center(
                           child: Padding(
@@ -385,8 +529,6 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ),
                         ),
-
-                      // Error
                       if (errorMessage != null) ...[
                         const SizedBox(height: 16),
                         Container(
@@ -411,10 +553,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                 ),
-
                 const SizedBox(height: 32),
-
-                // ── Footer Note (Gujarati) ──────────────────────
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
@@ -433,45 +572,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           height: 1.5,
                         ),
                       ),
-                      // const SizedBox(height: 16),
-                      // Text(
-                      //   "જો તમને સ્થિતિ અંગે કોઈ પ્રશ્ન હોય, તો સંપર્ક કરો:",
-                      //   textAlign: TextAlign.center,
-                      //   style: GoogleFonts.notoSansGujarati(
-                      //     fontSize: 14,
-                      //     color: Colors.white70,
-                      //     fontWeight: FontWeight.w500,
-                      //   ),
-                      // ),
-                      // const SizedBox(height: 12),
-                      // Row(
-                      //   mainAxisAlignment: MainAxisAlignment.center,
-                      //   children: [
-                      //     const Icon(
-                      //       Icons.phone_rounded,
-                      //       size: 16,
-                      //       color: Color(0xFF81D4FA),
-                      //     ),
-                      //     const SizedBox(width: 8),
-                      //     Text(
-                      //       "૭૮૬૫૦૦૯૨૦૦, ૭૮૬૫૦૦૭૨૦૦",
-                      //       style: GoogleFonts.outfit(
-                      //         fontSize: 15,
-                      //         color: const Color(0xFF81D4FA),
-                      //         fontWeight: FontWeight.bold,
-                      //       ),
-                      //     ),
-                      //   ],
-                      // ),
-                      // const SizedBox(height: 4),
-                      // Text(
-                      //   "૭૮૬૪૦૦૭૨૦૦",
-                      //   style: GoogleFonts.outfit(
-                      //     fontSize: 15,
-                      //     color: const Color(0xFF81D4FA),
-                      //     fontWeight: FontWeight.bold,
-                      //   ),
-                      // ),
                     ],
                   ),
                 ),
@@ -521,5 +621,3 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
-
-
