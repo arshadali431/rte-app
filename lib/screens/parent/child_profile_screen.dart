@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/firestore_service.dart';
 import '../../models/child_model.dart';
 import '../../core/utils.dart';
+import '../../widgets/no_internet_banner.dart';
 
 class ChildProfileScreen extends StatefulWidget {
   const ChildProfileScreen({super.key});
@@ -67,15 +68,24 @@ class _ChildProfileScreenState extends State<ChildProfileScreen> {
         foregroundColor: Colors.black,
         elevation: 0,
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF00796B)))
-          : _children.isEmpty
-              ? _buildEmptyState()
-              : ListView.builder(
-                  padding: const EdgeInsets.all(24),
-                  itemCount: _children.length,
-                  itemBuilder: (context, index) => _buildChildCard(_children[index]),
-                ),
+      body: Column(
+        children: [
+          const NoInternetBanner(),
+          Expanded(
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(color: Color(0xFF00796B)))
+                : _children.isEmpty
+                    ? _buildEmptyState()
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(24),
+                        itemCount: _children.length,
+                        itemBuilder: (context, index) =>
+                            _buildChildCard(_children[index]),
+                      ),
+          ),
+        ],
+      ),
       floatingActionButton: _children.isNotEmpty
           ? FloatingActionButton(
               onPressed: () => _showAddEditSheet(),

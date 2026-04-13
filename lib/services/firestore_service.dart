@@ -3,6 +3,7 @@ import '../core/constants.dart';
 import '../models/token_model.dart';
 import '../models/child_model.dart';
 import '../models/document_model.dart';
+import '../models/maintenance_model.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -192,5 +193,32 @@ class FirestoreService {
     } catch (e) {
       return false;
     }
+  }
+
+  // ────────── Maintenance ──────────
+
+  Future<MaintenanceModel> getMaintenanceStatus() async {
+    try {
+      final doc = await _db
+          .collection('rte-2026-27')
+          .doc('admin')
+          .get();
+      if (!doc.exists) return MaintenanceModel.defaults();
+      return MaintenanceModel.fromFirestore(doc.data()!);
+    } catch (e) {
+      return MaintenanceModel.defaults(); // fail safe — never block app
+    }
+  }
+
+  /// Realtime stream for maintenance status
+  Stream<MaintenanceModel> streamMaintenanceStatus() {
+    return _db
+        .collection('rte-2026-27')
+        .doc('admin')
+        .snapshots()
+        .map((snap) {
+      if (!snap.exists) return MaintenanceModel.defaults();
+      return MaintenanceModel.fromFirestore(snap.data()!);
+    });
   }
 }

@@ -17,6 +17,7 @@ import '../../models/document_model.dart';
 import '../../core/utils.dart';
 import '../../core/constants.dart';
 import '../../core/permission_handler.dart';
+import '../../widgets/no_internet_banner.dart';
 
 class TokenDetailScreen extends StatefulWidget {
   final TokenModel token;
@@ -315,40 +316,52 @@ class _TokenDetailScreenState extends State<TokenDetailScreen> {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF0D2B2B), Color(0xFF0A1A1A)],
-          ),
-        ),
-        child: _isLoading 
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF81D4FA)))
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildParentSection(),
-                  const SizedBox(height: 24),
-                  if (_token.applicationId != null) ...[
-                    _buildRegisteredIdCard(),
-                    const SizedBox(height: 24),
+      body: Column(
+        children: [
+          const NoInternetBanner(),
+          Expanded(
+            child: Container(
+              width: double.infinity,
+              height: double.infinity,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xFF0D2B2B),
+                    Color(0xFF004D40),
+                    Color(0xFF00796B),
                   ],
-                  _buildStatusUpdateSection(),
-                  const SizedBox(height: 24),
-                  _buildChildrenSection(),
-                  const SizedBox(height: 24),
-                  _buildDocumentsManager(),
-                  const SizedBox(height: 24),
-                  _buildQrSection(),
-                  const SizedBox(height: 40),
-                ],
+                ),
               ),
+              child: _isLoading
+                  ? const Center(
+                      child: CircularProgressIndicator(color: Color(0xFF81D4FA)))
+                  : SingleChildScrollView(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildParentSection(),
+                          const SizedBox(height: 24),
+                          if (_token.applicationId != null) ...[
+                            _buildRegisteredIdCard(),
+                            const SizedBox(height: 24),
+                          ],
+                          _buildStatusUpdateSection(),
+                          const SizedBox(height: 24),
+                          _buildChildrenSection(),
+                          const SizedBox(height: 24),
+                          _buildDocumentsManager(),
+                          const SizedBox(height: 24),
+                          _buildQrSection(),
+                          const SizedBox(height: 40),
+                        ],
+                      ),
+                    ),
             ),
+          ),
+        ],
       ),
     );
   }

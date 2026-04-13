@@ -2,86 +2,115 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../services/auth_service.dart';
+import '../../core/maintenance_mixin.dart';
+import '../../widgets/no_internet_banner.dart';
 
-class OfficeDashboardScreen extends StatelessWidget {
+class OfficeDashboardScreen extends StatefulWidget {
   const OfficeDashboardScreen({super.key});
 
   @override
+  State<OfficeDashboardScreen> createState() => _OfficeDashboardScreenState();
+}
+
+class _OfficeDashboardScreenState extends State<OfficeDashboardScreen> with MaintenanceWatcher {
+  @override
+  void initState() {
+    super.initState();
+    startMaintenanceWatch();
+  }
+
+  @override
+  void dispose() {
+    stopMaintenanceWatch();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0D2B2B),
-      appBar: AppBar(
-        title: Text(
-          'Dashboard',
-          style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        // do nothing
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFF0D2B2B),
+        appBar: AppBar(
+          title: Text(
+            'Dashboard',
+            style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+          ),
+          backgroundColor: Colors.transparent,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.logout_rounded, color: Colors.white70),
+              onPressed: () => _showLogoutDialog(context),
+            ),
+          ],
         ),
-        backgroundColor: Colors.transparent,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        // leading: IconButton(
-        //   icon: const Icon(Icons.arrow_back_ios_new_rounded),
-        //   onPressed: () => context.go('/role'),
-        // ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout_rounded, color: Colors.white70),
-            onPressed: () => _showLogoutDialog(context),
-          ),
-        ],
-      ),
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF0D2B2B),
-              Color(0xFF0A1A1A),
-            ],
-          ),
-        ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildMenuCard(
-                context,
-                icon: Icons.add_card_rounded,
-                title: 'New Token',
-                subtitle: 'Generate token for a new family',
-                onTap: () => context.push('/office/new-token'),
+        body: Column(
+          children: [
+            const NoInternetBanner(),
+            Expanded(
+              child: Container(
+                width: double.infinity,
+                height: double.infinity,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0xFF0D2B2B),
+                      Color(0xFF004D40),
+                      Color(0xFF00796B),
+                    ],
+                  ),
+                ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildMenuCard(
+                        context,
+                        icon: Icons.add_card_rounded,
+                        title: 'New Token',
+                        subtitle: 'Generate token for a new family',
+                        onTap: () => context.push('/office/new-token'),
+                      ),
+                      const SizedBox(height: 20),
+                      _buildMenuCard(
+                        context,
+                        icon: Icons.search_rounded,
+                        title: 'Search Application',
+                        subtitle: 'Find application by name or mobile',
+                        onTap: () => context.push('/office/search'),
+                      ),
+                      const SizedBox(height: 20),
+                      _buildMenuCard(
+                        context,
+                        icon: Icons.language_rounded,
+                        title: 'Check Status Gov.',
+                        subtitle: 'Verify on government portal',
+                        iconColor: Colors.blue[700],
+                        borderColor: Colors.blue.withOpacity(0.2),
+                        onTap: () => context.push('/rte/status-checker'),
+                      ),
+                      const SizedBox(height: 20),
+                      _buildMenuCard(
+                        context,
+                        icon: Icons.qr_code_scanner_rounded,
+                        title: 'Scan QR',
+                        subtitle: 'Scan parent QR to view details',
+                        onTap: () => context.push('/office/scan'),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              const SizedBox(height: 20),
-              _buildMenuCard(
-                context,
-                icon: Icons.search_rounded,
-                title: 'Search Application',
-                subtitle: 'Find application by name or mobile',
-                onTap: () => context.push('/office/search'),
-              ),
-              const SizedBox(height: 20),
-              _buildMenuCard(
-                context,
-                icon: Icons.language_rounded,
-                title: 'Check Status Gov.',
-                subtitle: 'Verify on government portal',
-                iconColor: Colors.blue[700],
-                borderColor: Colors.blue.withOpacity(0.2),
-                onTap: () => context.push('/rte/status-checker'),
-              ),
-              const SizedBox(height: 20),
-              _buildMenuCard(
-                context,
-                icon: Icons.qr_code_scanner_rounded,
-                title: 'Scan QR',
-                subtitle: 'Scan parent QR to view details',
-                onTap: () => context.push('/office/scan'),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../services/firestore_service.dart';
+import '../../widgets/no_internet_banner.dart';
 
 class NewTokenScreen extends StatefulWidget {
   const NewTokenScreen({super.key});
@@ -96,16 +97,24 @@ class _NewTokenScreenState extends State<NewTokenScreen> {
           },
         ),
       ),
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF0D2B2B), Color(0xFF0A1A1A)],
-          ),
-        ),
+      body: Column(
+        children: [
+          const NoInternetBanner(),
+          Expanded(
+            child: Container(
+              width: double.infinity,
+              height: double.infinity,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xFF0D2B2B),
+                    Color(0xFF004D40),
+                    Color(0xFF00796B),
+                  ],
+                ),
+              ),
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Form(
@@ -113,15 +122,17 @@ class _NewTokenScreenState extends State<NewTokenScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-
                 // Realtime Token Number Display Card
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
                   decoration: BoxDecoration(
                     color: const Color(0xFF1A3535),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFF81D4FA).withOpacity(0.3), width: 1.5),
+                    border: Border.all(
+                        color: const Color(0xFF81D4FA).withOpacity(0.3),
+                        width: 1.5),
                   ),
                   child: Column(
                     children: [
@@ -166,13 +177,14 @@ class _NewTokenScreenState extends State<NewTokenScreen> {
                 ),
 
                 const SizedBox(height: 32),
-                
+
                 _buildInputLabel('Parent Name'),
                 TextFormField(
                   controller: _nameController,
                   style: const TextStyle(color: Colors.white),
                   textCapitalization: TextCapitalization.words,
-                  decoration: _inputDecoration('Enter full name', Icons.person_outline_rounded),
+                  decoration: _inputDecoration(
+                      'Enter full name', Icons.person_outline_rounded),
                   validator: (v) => v!.isEmpty ? 'Name is required' : null,
                 ),
                 const SizedBox(height: 24),
@@ -183,8 +195,10 @@ class _NewTokenScreenState extends State<NewTokenScreen> {
                   maxLength: 10,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   style: const TextStyle(color: Colors.white),
-                  decoration: _inputDecoration('10-digit number', Icons.phone_iphone_rounded),
-                  validator: (v) => v!.length != 10 ? 'Enter valid 10-digit number' : null,
+                  decoration: _inputDecoration(
+                      '10-digit number', Icons.phone_iphone_rounded),
+                  validator: (v) =>
+                      v!.length != 10 ? 'Enter valid 10-digit number' : null,
                 ),
                 const SizedBox(height: 60),
                 SizedBox(
@@ -194,12 +208,19 @@ class _NewTokenScreenState extends State<NewTokenScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF00796B),
                       foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16)),
                       elevation: 0,
                     ),
                     child: _isLoading
-                        ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : Text('Generate Token', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
+                        ? const SizedBox(
+                            height: 24,
+                            width: 24,
+                            child: CircularProgressIndicator(
+                                color: Colors.white, strokeWidth: 2))
+                        : Text('Generate Token',
+                            style: GoogleFonts.outfit(
+                                fontSize: 18, fontWeight: FontWeight.bold)),
                   ),
                 ),
               ],
@@ -207,6 +228,9 @@ class _NewTokenScreenState extends State<NewTokenScreen> {
           ),
         ),
       ),
+    ),
+  ],
+),
     );
   }
 

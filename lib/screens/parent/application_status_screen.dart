@@ -11,6 +11,7 @@ import '../../services/firestore_service.dart';
 import '../../models/token_model.dart';
 import '../../models.dart';
 import '../../core/utils.dart';
+import '../../widgets/no_internet_banner.dart';
 
 // SSL Override Class
 class _AppHttpOverrides extends HttpOverrides {
@@ -302,9 +303,14 @@ class _ApplicationStatusScreenState extends State<ApplicationStatusScreen>
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF00796B)))
-          : RefreshIndicator(
+      body: Column(
+        children: [
+          const NoInternetBanner(),
+          Expanded(
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(color: Color(0xFF00796B)))
+                : RefreshIndicator(
               onRefresh: _loadData,
               color: const Color(0xFF00796B),
               child: SingleChildScrollView(
@@ -324,6 +330,9 @@ class _ApplicationStatusScreenState extends State<ApplicationStatusScreen>
                 ),
               ),
             ),
+          ),
+        ],
+      ),
     );
   }
 

@@ -15,6 +15,7 @@ import '../screens/office/generated_token_screen.dart';
 import '../screens/office/token_detail_screen.dart';
 import '../screens/office/office_login_screen.dart';
 import '../screens/rte/rte_status_screen.dart';
+import '../screens/maintenance_screen.dart';
 import '../models/token_model.dart';
 
 class AppRouter {
@@ -150,6 +151,37 @@ class AppRouter {
         pageBuilder: (context, state) => _buildPage(
           state: state,
           child: const RteStatusScreen(),
+        ),
+      ),
+      // Maintenance Path
+      GoRoute(
+        path: '/maintenance/central',
+        pageBuilder: (context, state) => _buildPage(
+          state: state,
+          child: const MaintenanceScreen(
+            allowBack: false, // LOCKED
+            message: 'The app is currently under maintenance.\nPlease check back later.',
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/maintenance/office',
+        pageBuilder: (context, state) => _buildPage(
+          state: state,
+          child: const MaintenanceScreen(
+            allowBack: true, // CAN GO BACK
+            message: 'Office access is temporarily unavailable.\nPlease try again later.',
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/maintenance/parent',
+        pageBuilder: (context, state) => _buildPage(
+          state: state,
+          child: const MaintenanceScreen(
+            allowBack: true, // CAN GO BACK
+            message: 'Parent portal is temporarily unavailable.\nPlease try again later.',
+          ),
         ),
       ),
     ],

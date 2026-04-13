@@ -6,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../services/firestore_service.dart';
 import '../../models/token_model.dart';
+import '../../core/maintenance_mixin.dart';
+import '../../widgets/no_internet_banner.dart';
 
 class ParentDashboardScreen extends StatefulWidget {
   const ParentDashboardScreen({super.key});
@@ -14,7 +16,8 @@ class ParentDashboardScreen extends StatefulWidget {
   State<ParentDashboardScreen> createState() => _ParentDashboardScreenState();
 }
 
-class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
+class _ParentDashboardScreenState extends State<ParentDashboardScreen>
+    with MaintenanceWatcher {
   TokenModel? _token;
   bool _isLoading = true;
   String? _error;
@@ -22,9 +25,16 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   @override
   void initState() {
     super.initState();
+    startMaintenanceWatch();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadToken();
     });
+  }
+
+  @override
+  void dispose() {
+    stopMaintenanceWatch();
+    super.dispose();
   }
 
   Future<void> _loadToken() async {
@@ -47,7 +57,6 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         final token = await FirestoreService().getTokenById(tokenId);
         if (mounted) {
           if (token == null) {
-            // Token deleted or invalid, clear and redirect
             final prefs = await SharedPreferences.getInstance();
             await prefs.remove('token_id');
             await prefs.remove('token_number');
@@ -207,6 +216,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               data: qrJson,
               version: QrVersions.auto,
               size: 200.0,
+              backgroundColor: Colors.white,
               eyeStyle: const QrEyeStyle(
                 eyeShape: QrEyeShape.square,
                 color: Color(0xFF004D40),
@@ -227,121 +237,134 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: Text(
-          'My Application',
-          style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
-        actions: [
-          IconButton(
-            onPressed: _showProfile,
-            icon: const Icon(Icons.person_rounded),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        // do nothing
+      },
+      child: Scaffold(
+        backgroundColor: Colors.grey[50],
+        appBar: AppBar(
+          title: Text(
+            'My Application',
+            style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
           ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFF00796B)),
-            )
-          : _error != null
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.error_outline_rounded,
-                    size: 64,
-                    color: Colors.redAccent,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    _error!,
-                    style: GoogleFonts.outfit(
-                      fontSize: 16,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  ElevatedButton(
-                    onPressed: _loadToken,
-                    child: const Text('Retry'),
-                  ),
-                ],
-              ),
-            )
-          : RefreshIndicator(
-              onRefresh: _loadToken,
-              color: const Color(0xFF00796B),
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildWelcomeCard(),
-                    const SizedBox(height: 32),
-                    Text(
-                      'QUICK ACTIONS',
-                      style: GoogleFonts.outfit(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[600],
-                        letterSpacing: 1.5,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          elevation: 0,
+          actions: [
+            IconButton(
+              onPressed: _showProfile,
+              icon: const Icon(Icons.person_rounded),
+            ),
+          ],
+        ),
+        body: Column(
+          children: [
+            const NoInternetBanner(),
+            Expanded(
+              child: _isLoading
+                  ? const Center(
+                      child: CircularProgressIndicator(color: Color(0xFF00796B)),
+                    )
+            : _error != null
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Expanded(
-                          child: _buildMenuCard(
-                            icon: Icons.child_care_rounded,
-                            title: 'Child Profile',
-                            onTap: () => context.push(
-                              '/parent/child-profile',
-                              extra: _token!.id,
-                            ),
+                        const Icon(
+                          Icons.error_outline_rounded,
+                          size: 64,
+                          color: Colors.redAccent,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          _error!,
+                          style: GoogleFonts.outfit(
+                            fontSize: 16,
+                            color: Colors.grey[700],
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildMenuCard(
-                            icon: Icons.assignment_turned_in_rounded,
-                            title: 'Application Status',
-                            subtitle: _token!.applicationId != null
-                                ? 'Application ID received!'
-                                : _token!.status.toUpperCase().replaceAll(
-                                    '_',
-                                    ' ',
-                                  ),
-                            subtitleColor: _token!.applicationId != null
-                                ? Colors.green
-                                : _getStatusColor(_token!.status),
-                            showBadge: _token!.applicationId != null,
-                            onTap: () => context.push(
-                              '/parent/status',
-                              extra: _token!.id,
-                            ),
-                          ),
+                        const SizedBox(height: 24),
+                        ElevatedButton(
+                          onPressed: _loadToken,
+                          child: const Text('Retry'),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    _buildMenuCardWide(
-                      icon: Icons.upload_file_rounded,
-                      title: 'Upload Documents',
-                      subtitle: 'Crops, compress and upload vault',
-                      onTap: () =>
-                          context.push('/parent/documents', extra: _token!.id),
+                  )
+                : RefreshIndicator(
+                    onRefresh: _loadToken,
+                    color: const Color(0xFF00796B),
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildWelcomeCard(),
+                          const SizedBox(height: 32),
+                          Text(
+                            'QUICK ACTIONS',
+                            style: GoogleFonts.outfit(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey[600],
+                              letterSpacing: 1.5,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildMenuCard(
+                                  icon: Icons.child_care_rounded,
+                                  title: 'Child Profile',
+                                  onTap: () => context.push(
+                                    '/parent/child-profile',
+                                    extra: _token!.id,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildMenuCard(
+                                  icon: Icons.assignment_turned_in_rounded,
+                                  title: 'Application Status',
+                                  subtitle: _token!.applicationId != null
+                                      ? 'Application ID received!'
+                                      : _token!.status.toUpperCase().replaceAll(
+                                          '_',
+                                          ' ',
+                                        ),
+                                  subtitleColor: _token!.applicationId != null
+                                      ? Colors.green
+                                      : _getStatusColor(_token!.status),
+                                  showBadge: _token!.applicationId != null,
+                                  onTap: () => context.push(
+                                    '/parent/status',
+                                    extra: _token!.id,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          _buildMenuCardWide(
+                            icon: Icons.upload_file_rounded,
+                            title: 'Upload Documents',
+                            subtitle: 'Crops, compress and upload vault',
+                            onTap: () =>
+                                context.push('/parent/documents', extra: _token!.id),
+                          ),
+                        ],
+                      ),
                     ),
-                  ],
-                ),
-              ),
+                  ),
             ),
+          ],
+        ),
+      ),
     );
   }
 

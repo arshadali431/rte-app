@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../services/firestore_service.dart';
 import '../../models/token_model.dart';
+import '../../widgets/no_internet_banner.dart';
 
 class SearchApplicationScreen extends StatefulWidget {
   const SearchApplicationScreen({super.key});
@@ -108,16 +109,24 @@ class _SearchApplicationScreenState extends State<SearchApplicationScreen> {
           },
         ),
       ),
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF0D2B2B), Color(0xFF0A1A1A)],
-          ),
-        ),
+      body: Column(
+        children: [
+          const NoInternetBanner(),
+          Expanded(
+            child: Container(
+              width: double.infinity,
+              height: double.infinity,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xFF0D2B2B),
+                    Color(0xFF004D40),
+                    Color(0xFF00796B),
+                  ],
+                ),
+              ),
         child: Column(
           children: [
             // Search Bar Section
@@ -134,13 +143,15 @@ class _SearchApplicationScreenState extends State<SearchApplicationScreen> {
                     ),
                     child: Row(
                       children: [
-                        _buildToggleOption('By Mobile', _byMobile, () => setState(() => _byMobile = true)),
-                        _buildToggleOption('By Name', !_byMobile, () => setState(() => _byMobile = false)),
+                        _buildToggleOption('By Mobile', _byMobile,
+                            () => setState(() => _byMobile = true)),
+                        _buildToggleOption('By Name', !_byMobile,
+                            () => setState(() => _byMobile = false)),
                       ],
                     ),
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // Search Field
                   Row(
                     children: [
@@ -148,19 +159,32 @@ class _SearchApplicationScreenState extends State<SearchApplicationScreen> {
                         child: TextField(
                           controller: _searchController,
                           style: const TextStyle(color: Colors.white),
-                          keyboardType: _byMobile ? TextInputType.phone : TextInputType.text,
+                          keyboardType: _byMobile
+                              ? TextInputType.phone
+                              : TextInputType.text,
                           maxLength: _byMobile ? 10 : null,
-                          inputFormatters: _byMobile ? [FilteringTextInputFormatter.digitsOnly] : [],
+                          inputFormatters: _byMobile
+                              ? [FilteringTextInputFormatter.digitsOnly]
+                              : [],
                           onSubmitted: (_) => _performSearch(),
                           decoration: InputDecoration(
-                            hintText: _byMobile ? 'Enter 10-digit mobile' : 'Enter parent name',
+                            hintText: _byMobile
+                                ? 'Enter 10-digit mobile'
+                                : 'Enter parent name',
                             counterText: '',
                             hintStyle: const TextStyle(color: Colors.white24),
-                            prefixIcon: Icon(_byMobile ? Icons.phone_android_rounded : Icons.person_search_rounded, color: const Color(0xFF81D4FA)),
+                            prefixIcon: Icon(
+                                _byMobile
+                                    ? Icons.phone_android_rounded
+                                    : Icons.person_search_rounded,
+                                color: const Color(0xFF81D4FA)),
                             filled: true,
                             fillColor: const Color(0xFF1A3535),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                            contentPadding: const EdgeInsets.symmetric(vertical: 18),
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                borderSide: BorderSide.none),
+                            contentPadding:
+                                const EdgeInsets.symmetric(vertical: 18),
                           ),
                         ),
                       ),
@@ -173,9 +197,11 @@ class _SearchApplicationScreenState extends State<SearchApplicationScreen> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF00796B),
                             padding: EdgeInsets.zero,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16)),
                           ),
-                          child: const Icon(Icons.search_rounded, color: Colors.white),
+                          child:
+                              const Icon(Icons.search_rounded, color: Colors.white),
                         ),
                       ),
                     ],
@@ -187,20 +213,25 @@ class _SearchApplicationScreenState extends State<SearchApplicationScreen> {
             // Results Section
             Expanded(
               child: _isLoading
-                  ? const Center(child: CircularProgressIndicator(color: Color(0xFF81D4FA)))
+                  ? const Center(
+                      child: CircularProgressIndicator(color: Color(0xFF81D4FA)))
                   : _results.isEmpty
-                      ? _hasSearched 
-                          ? _buildEmptyState() 
+                      ? _hasSearched
+                          ? _buildEmptyState()
                           : _buildRecentSection()
                       : ListView.builder(
                           padding: const EdgeInsets.symmetric(horizontal: 24),
                           itemCount: _results.length,
-                          itemBuilder: (context, index) => _buildResultCard(_results[index]),
+                          itemBuilder: (context, index) =>
+                              _buildResultCard(_results[index]),
                         ),
             ),
           ],
         ),
       ),
+    ),
+  ],
+),
     );
   }
 

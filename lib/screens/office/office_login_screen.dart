@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../services/auth_service.dart';
+import '../../core/maintenance_mixin.dart';
+import '../../widgets/no_internet_banner.dart';
 
 class OfficeLoginScreen extends StatefulWidget {
   const OfficeLoginScreen({super.key});
@@ -11,7 +13,8 @@ class OfficeLoginScreen extends StatefulWidget {
   State<OfficeLoginScreen> createState() => _OfficeLoginScreenState();
 }
 
-class _OfficeLoginScreenState extends State<OfficeLoginScreen> {
+class _OfficeLoginScreenState extends State<OfficeLoginScreen>
+    with MaintenanceWatcher {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
@@ -21,6 +24,12 @@ class _OfficeLoginScreenState extends State<OfficeLoginScreen> {
   bool _isLocked = false;
   int _lockSecondsRemaining = 0;
   Timer? _lockTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    startMaintenanceWatch();
+  }
 
   void _startLockout() {
     setState(() {
@@ -118,6 +127,7 @@ class _OfficeLoginScreenState extends State<OfficeLoginScreen> {
 
   @override
   void dispose() {
+    stopMaintenanceWatch();
     _lockTimer?.cancel();
     _usernameController.dispose();
     _passwordController.dispose();
@@ -127,17 +137,25 @@ class _OfficeLoginScreenState extends State<OfficeLoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF0D2B2B), Color(0xFF0A1A1A)],
-          ),
-        ),
-        child: SafeArea(
+      body: Column(
+        children: [
+          const NoInternetBanner(),
+          Expanded(
+            child: Container(
+              width: double.infinity,
+              height: double.infinity,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xFF0D2B2B),
+                    Color(0xFF004D40),
+                    Color(0xFF00796B),
+                  ],
+                ),
+              ),
+              child: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
             child: Column(
@@ -334,6 +352,9 @@ class _OfficeLoginScreenState extends State<OfficeLoginScreen> {
           ),
         ),
       ),
+    ),
+  ],
+),
     );
   }
 

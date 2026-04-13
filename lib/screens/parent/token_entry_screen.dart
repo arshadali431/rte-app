@@ -6,6 +6,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../core/permission_handler.dart';
+import '../../core/maintenance_mixin.dart';
+import '../../widgets/no_internet_banner.dart';
 
 class TokenEntryScreen extends StatefulWidget {
   const TokenEntryScreen({super.key});
@@ -14,12 +16,14 @@ class TokenEntryScreen extends StatefulWidget {
   State<TokenEntryScreen> createState() => _TokenEntryScreenState();
 }
 
-class _TokenEntryScreenState extends State<TokenEntryScreen> {
+class _TokenEntryScreenState extends State<TokenEntryScreen>
+    with MaintenanceWatcher {
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
+    startMaintenanceWatch();
     // Auto open scan options after screen renders
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showScanOptions();
@@ -186,25 +190,31 @@ class _TokenEntryScreenState extends State<TokenEntryScreen> {
 
   @override
   void dispose() {
+    stopMaintenanceWatch();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF0D2B2B),
-              Color(0xFF0A1A1A),
-            ],
-          ),
-        ),
+      body: Column(
+        children: [
+          const NoInternetBanner(),
+          Expanded(
+            child: Container(
+              width: double.infinity,
+              height: double.infinity,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xFF0D2B2B),
+                    Color(0xFF004D40),
+                    Color(0xFF00796B),
+                  ],
+                ),
+              ),
         child: SafeArea(
           child: Column(
             children: [
@@ -213,10 +223,11 @@ class _TokenEntryScreenState extends State<TokenEntryScreen> {
                 alignment: Alignment.topLeft,
                 child: IconButton(
                   onPressed: () => context.go('/role'), // go to role, NOT pop
-                  icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                      color: Colors.white),
                 ),
               ),
-              
+
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -228,21 +239,24 @@ class _TokenEntryScreenState extends State<TokenEntryScreen> {
                         color: const Color(0xFF00796B).withOpacity(0.15),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.qr_code_scanner_rounded, 
-                        size: 64, color: Color(0xFF81D4FA)),
+                      child: const Icon(Icons.qr_code_scanner_rounded,
+                          size: 64, color: Color(0xFF81D4FA)),
                     ),
                     const SizedBox(height: 32),
-                    
+
                     Text('Scan Your Token',
-                      style: GoogleFonts.outfit(
-                        fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
+                        style: GoogleFonts.outfit(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white)),
                     const SizedBox(height: 8),
                     Text('Scan the QR code given by our office',
-                      style: GoogleFonts.outfit(fontSize: 15, color: Colors.white54),
-                      textAlign: TextAlign.center),
-                      
+                        style: GoogleFonts.outfit(
+                            fontSize: 15, color: Colors.white54),
+                        textAlign: TextAlign.center),
+
                     const SizedBox(height: 48),
-                    
+
                     // Scan button
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 40),
@@ -253,19 +267,19 @@ class _TokenEntryScreenState extends State<TokenEntryScreen> {
                           onPressed: _isLoading ? null : _showScanOptions,
                           icon: const Icon(Icons.qr_code_scanner_rounded),
                           label: Text('Scan QR Code',
-                            style: GoogleFonts.outfit(
-                              fontSize: 18, fontWeight: FontWeight.bold)),
+                              style: GoogleFonts.outfit(
+                                  fontSize: 18, fontWeight: FontWeight.bold)),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF00796B),
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16)),
+                                borderRadius: BorderRadius.circular(16)),
                             elevation: 0,
                           ),
                         ),
                       ),
                     ),
-                    
+
                     if (_isLoading) ...[
                       const SizedBox(height: 24),
                       const CircularProgressIndicator(color: Color(0xFF81D4FA)),
@@ -277,6 +291,9 @@ class _TokenEntryScreenState extends State<TokenEntryScreen> {
           ),
         ),
       ),
+    ),
+  ],
+),
     );
   }
 }
