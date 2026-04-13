@@ -21,6 +21,13 @@ A mobile-first experience for parents to stay connected with their application's
 - **Live Status Feed**: Real-time progress tracking from submission to final approval.
 - **Child Profile Hub**: Comprehensive management of student details and metadata.
 
+### 3. Automated Document Mirroring (Cloud Infrastructure)
+A high-efficiency background system that ensures all physical documents are redundant and easily accessible via Google Drive.
+- **Real-time Sync**: Automated trigger via Firebase Cloud Functions whenever a file is finalized in Storage.
+- **Enterprise-ready Quota**: Integrated **OAuth 2.0 (Refresh Token)** flow to leverage your **5TB Google Drive storage**, bypassing the limitations of standard service accounts.
+- **Smart Organization**: Automatically categorizes documents into specific sub-folders based on Application Tokens (e.g., `Token_104`, `Token_105`).
+- **Conflict Management**: Intelligent logic to detect existing files and perform atomic updates or creations as needed.
+
 ---
 
 ## 🚀 Key Features
@@ -37,8 +44,9 @@ A mobile-first experience for parents to stay connected with their application's
 
 - **Engine**: Flutter (Dart)
 - **Database**: Cloud Firestore (Real-time NoSQL)
-- **File Storage**: Firebase Storage (Secure document vault)
-- **Local Persistence**: SharedPreferences (Session recovery & Smart-history)
+- **File Storage**: Firebase Storage & Google Drive (Bi-cloud redundancy)
+- **Backend Logic**: Firebase Cloud Functions (Node.js 20)
+- **Authentication**: Firebase Auth & OAuth 2.0 (Google Workspace integration)
 - **Networking**: Dio (Advanced HTTP client with interceptors)
 - **Navigation**: GoRouter (Declarative routing system)
 
@@ -54,10 +62,11 @@ A mobile-first experience for parents to stay connected with their application's
 2. **Configure Firebase**
    - Ensure `google-services.json` is correctly placed in `android/app/`.
 
-3. **Install Dependencies**
-   ```bash
-   flutter pub get
-   ```
+3. **Cloud Functions Setup**
+   - Navigate to `/functions`
+   - Install dependencies: `npm install`
+   - Setup OAuth credentials in `index.js`
+   - Deploy: `firebase deploy --only functions`
 
 4. **Launch Application**
    ```bash
