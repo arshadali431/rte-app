@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../services/auth_service.dart';
+import '../../services/firestore_service.dart';
+import '../../services/rte_service.dart';
+import '../../models/token_model.dart';
 import '../../core/maintenance_mixin.dart';
 import '../../widgets/no_internet_banner.dart';
 
@@ -13,6 +16,7 @@ class OfficeDashboardScreen extends StatefulWidget {
 }
 
 class _OfficeDashboardScreenState extends State<OfficeDashboardScreen> with MaintenanceWatcher {
+  bool _isSyncing = false;
   @override
   void initState() {
     super.initState();
@@ -83,7 +87,7 @@ class _OfficeDashboardScreenState extends State<OfficeDashboardScreen> with Main
                       _buildMenuCard(
                         context,
                         icon: Icons.search_rounded,
-                        title: 'Search Application',
+                        title: 'All Application',
                         subtitle: 'Find application by name or mobile',
                         onTap: () => context.push('/office/search'),
                       ),
@@ -105,6 +109,8 @@ class _OfficeDashboardScreenState extends State<OfficeDashboardScreen> with Main
                         subtitle: 'Scan parent QR to view details',
                         onTap: () => context.push('/office/scan'),
                       ),
+                      const SizedBox(height: 32),
+                      _buildAnalysisCardWidget(),
                     ],
                   ),
                 ),
@@ -112,6 +118,124 @@ class _OfficeDashboardScreenState extends State<OfficeDashboardScreen> with Main
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildAnalysisCardWidget() {
+    return StreamBuilder<List<TokenModel>>(
+      stream: FirestoreService().getAllTokens(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator(color: Color(0xFF81D4FA)));
+        }
+
+        final tokens = snapshot.data!;
+        
+        // Dynamic Filtering
+        List<TokenModel> totalList = tokens;
+        List<TokenModel> approvedList = tokens.where((t) => t.govStatus == 'APPROVED').toList();
+        List<TokenModel> cancelledList = tokens.where((t) => t.govStatus == 'CANCELLED').toList();
+        List<TokenModel> correctionList = tokens.where((t) => t.govStatus == 'CORRECTION').toList();
+        List<TokenModel> reSubmitList = tokens.where((t) => t.applicationHistory.isNotEmpty).toList();
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A3535),
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: Colors.white.withOpacity(0.08)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'APPLICATION ANALYSIS',
+                    style: GoogleFonts.outfit(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF81D4FA),
+                      letterSpacing: 2,
+                    ),
+                  ),
+                  // _isSyncing
+                  //   ? const SizedBox(
+                  //       width: 16,
+                  //       height: 16,
+                  //       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white24),
+                  //     )
+                  //   : IconButton(
+                  //       icon: const Icon(Icons.sync_rounded, color: Colors.white24, size: 20),
+                  //       onPressed: () => _syncAllStatuses(tokens),
+                  //       constraints: const BoxConstraints(),
+                  //       padding: EdgeInsets.zero,
+                  //       tooltip: 'Sync all from portal',
+                  //     ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              _buildAnalysisStat('Total Generated', totalList.length, Colors.white, () => _openDetails('All Generated', totalList)),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Divider(color: Colors.white10),
+              ),
+              Row(
+                children: [
+                  Expanded(child: _buildAnalysisStat('Approved', approvedList.length, Colors.greenAccent, () => _openDetails('Approved', approvedList))),
+                  Expanded(child: _buildAnalysisStat('Correction', correctionList.length, Colors.orangeAccent, () => _openDetails('Correction', correctionList))),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(child: _buildAnalysisStat('Cancelled', cancelledList.length, Colors.redAccent, () => _openDetails('Cancelled', cancelledList))),
+                  Expanded(child: _buildAnalysisStat('Re-submitted', reSubmitList.length, const Color(0xFFE1F5FE), () => _openDetails('Re-submitted', reSubmitList))),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _openDetails(String category, List<TokenModel> tokens) {
+    context.push('/office/analysis-details', extra: {'category': category, 'tokens': tokens});
+  }
+
+  Widget _buildAnalysisStat(String label, int count, Color color, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            count.toString(),
+            style: GoogleFonts.outfit(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          Row(
+            children: [
+              Text(
+                label,
+                style: GoogleFonts.outfit(
+                  fontSize: 12,
+                  color: Colors.white38,
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(Icons.open_in_new_rounded, size: 10, color: Colors.white12),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -234,5 +358,45 @@ class _OfficeDashboardScreenState extends State<OfficeDashboardScreen> with Main
         ],
       ),
     );
+  }
+
+  Future<void> _syncAllStatuses(List<TokenModel> tokens) async {
+    final toSync = tokens.where((t) => t.applicationId != null && t.childDob != null).toList();
+
+    if (toSync.isEmpty) return;
+
+    setState(() => _isSyncing = true);
+
+    int count = 0;
+    try {
+      for (final token in toSync) {
+        try {
+          final data = await RteService().fetchApplicationStatus(
+            token.applicationId!,
+            token.childDob!,
+          );
+          
+          final classified = RteService().classifyStatus(data.statusMessage);
+          await FirestoreService().updateGovStatus(
+            token.id,
+            govStatus: classified,
+            message: data.statusMessage,
+          );
+          count++;
+          debugPrint("Synced (${count}/${toSync.length}): ${token.applicationId}");
+        } catch (e) {
+          debugPrint("Failed to sync ${token.applicationId}: $e");
+        }
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Portal Sync Complete: $count records updated')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSyncing = false);
+    }
   }
 }

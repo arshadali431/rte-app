@@ -215,6 +215,7 @@ class RteResultScreen extends StatelessWidget {
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: DataTable(
+              showCheckboxColumn: false,
               columns: rows[0].map((h) => DataColumn(label: Text(h))).toList(),
               rows: rows.skip(1).map((row) {
                 return DataRow(

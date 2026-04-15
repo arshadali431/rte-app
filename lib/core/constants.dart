@@ -20,60 +20,36 @@ class AppConstants {
   // Mandatory documents
   static const List<String> mandatoryDocTypes = [
     'child_photo',
-    'child_aadhaar',
     'child_birth_cert',
-    'father_aadhaar',
-    'mother_aadhaar',
-    'father_pan',
+    'child_aadhaar',
     'income_cert',
-    'father_signature',
-    'bank_passbook',
+    'parent_pan',
+    'self_declaration',
+    'parent_signature',
   ];
 
-  // Optional documents
-  static const List<String> optionalDocTypes = [
-    'bpl',
-    'caste',
-    'anganwadi',
-    'single_girl',
-  ];
-
-  // Combined list for logic
-  static List<String> get allDocTypes => [...mandatoryDocTypes, ...optionalDocTypes];
+  // Combined list for logic (Mandatory + any that exist in DB)
+  static List<String> get allDocTypes => mandatoryDocTypes;
 
   // Display names
   static const Map<String, String> docTypeNames = {
-    // Mandatory
-    'child_photo': 'Child Passport Size Photo',
-    'child_aadhaar': 'Child Aadhaar Card',
+    'child_photo': 'Child Passport Photo',
     'child_birth_cert': 'Child Birth Certificate',
-    'father_aadhaar': 'Father Aadhaar Card',
-    'mother_aadhaar': 'Mother Aadhaar Card',
-    'father_pan': 'Father PAN Card',
-    'income_cert': 'Income Certificate',
-    'father_signature': 'Father Signature',
-    'bank_passbook': 'Bank Passbook (Child/Parent)',
-    // Optional
-    'bpl': 'BPL Card',
-    'caste': 'Caste Certificate',
-    'anganwadi': 'Anganwadi Certificate',
-    'single_girl': 'Single Girl Child Certificate',
+    'child_aadhaar': 'Child Aadhaar Card',
+    'income_cert': 'Father Income Certificate',
+    'parent_pan': 'Parent PAN Card',
+    'self_declaration': 'Self Declaration',
+    'parent_signature': 'Parent Signature',
   };
 
   // Icons for each doc type
   static const Map<String, IconData> docTypeIcons = {
     'child_photo': Icons.face_rounded,
-    'child_aadhaar': Icons.credit_card_rounded,
     'child_birth_cert': Icons.cake_rounded,
-    'father_aadhaar': Icons.credit_card_rounded,
-    'mother_aadhaar': Icons.credit_card_rounded,
-    'father_pan': Icons.receipt_long_rounded,
+    'child_aadhaar': Icons.credit_card_rounded,
     'income_cert': Icons.account_balance_rounded,
-    'father_signature': Icons.draw_rounded,
-    'bank_passbook': Icons.account_balance_wallet_rounded,
-    'bpl': Icons.card_membership_rounded,
-    'caste': Icons.verified_rounded,
-    'anganwadi': Icons.school_rounded,
-    'single_girl': Icons.girl_rounded,
+    'parent_pan': Icons.credit_card_rounded,
+    'self_declaration': Icons.verified_user_rounded,
+    'parent_signature': Icons.draw_rounded,
   };
 }

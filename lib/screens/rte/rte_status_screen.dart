@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/utils.dart';
-import 'package:dio/dio.dart';
-import 'package:html/parser.dart' as parser;
+import '../../services/rte_service.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models.dart';
 import 'rte_result_screen.dart';
@@ -17,7 +16,6 @@ class RteStatusScreen extends StatefulWidget {
 }
 
 class _RteStatusScreenState extends State<RteStatusScreen> {
-  final Dio dio = Dio();
   final TextEditingController appController =
       TextEditingController(text: 'GJ/2026-27/SRC/');
   final TextEditingController dobController = TextEditingController();
@@ -204,68 +202,10 @@ class _RteStatusScreenState extends State<RteStatusScreen> {
     });
 
     try {
-      debugPrint("--- STEP 1: INITIAL GET REQUEST ---");
-      const String userAgent =
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-
-      final getResponse = await dio.get(
-        "https://rte.orpgujarat.com/ApplicationFormStatus",
-        options: Options(
-          headers: {"User-Agent": userAgent},
-        ),
+      final data = await RteService().fetchApplicationStatus(
+        appController.text.trim(),
+        dobController.text.trim(),
       );
-
-      List<String> rawCookies = getResponse.headers["set-cookie"] ?? [];
-      String cookieString = rawCookies.map((e) => e.split(";")[0]).join("; ");
-      debugPrint("Extracted Cookies: $cookieString");
-
-      final tokenMatch = RegExp(
-              r'name="__RequestVerificationToken".*?value="([^"]+)"',
-              dotAll: true)
-          .firstMatch(getResponse.data.toString());
-
-      String? token = tokenMatch?.group(1);
-      debugPrint("Extracted Token Found: ${token != null}");
-
-      if (token == null) {
-        throw Exception(
-          "Could not find verification token. The site structure might have changed.",
-        );
-      }
-
-      debugPrint("--- STEP 2: POST STATUS CHECK ---");
-      debugPrint(
-        "Checking Status for: ${appController.text} | DOB: ${dobController.text}",
-      );
-
-      final postResponse = await dio.post(
-        "https://rte.orpgujarat.com/ApplicationFormStatus",
-        data: {
-          "__RequestVerificationToken": token,
-          "ApplicationNumber": appController.text.trim(),
-          "DateOfBirth": dobController.text.trim(),
-        },
-        options: Options(
-          contentType: Headers.formUrlEncodedContentType,
-          headers: {
-            "Accept":
-                "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Cookie": cookieString,
-            "Origin": "https://rte.orpgujarat.com",
-            "Referer": "https://rte.orpgujarat.com/ApplicationFormStatus",
-            "User-Agent": userAgent,
-          },
-          followRedirects: true,
-          validateStatus: (status) => status != null && status < 500,
-        ),
-      );
-
-      debugPrint("POST Response Status Code: ${postResponse.statusCode}");
-      debugPrint(
-        "POST Response Body Length: ${postResponse.data.toString().length}",
-      );
-
-      final data = _parseResponseNew(postResponse.data.toString());
 
       setState(() => loading = false);
 
@@ -295,125 +235,12 @@ class _RteStatusScreenState extends State<RteStatusScreen> {
       }
     } catch (e) {
       setState(() {
-        errorMessage =
-            "Something went wrong. Check your application number, date of birth, or internet connection.";
+        errorMessage = "Something went wrong. Check details or connection.";
         loading = false;
       });
-      debugPrint("EXCEPTION CAUGHT: $e");
     }
   }
 
-  RteApplicationData _parseResponseNew(String html) {
-    final doc = parser.parse(html);
-    String appNum = appController.text.trim();
-    final cardHeader = doc.querySelector('.card-header');
-    if (cardHeader != null) {
-      final match = RegExp(
-        r'(?:for\s+)([A-Z0-9/\-]+)',
-      ).firstMatch(cardHeader.text);
-      if (match != null) appNum = match.group(1)!.trim();
-    }
-
-    String statusMsg = '';
-    final allFieldsets = doc.querySelectorAll('fieldset');
-    for (final fs in allFieldsets) {
-      final legend = fs.querySelector('legend');
-      if (legend != null && legend.text.trim().contains('અરજીની સ્થિતિ')) {
-        final p = fs.querySelector('p');
-        statusMsg = p != null
-            ? p.text.trim()
-            : fs.text.replaceAll(legend.text, '').trim();
-        break;
-      }
-    }
-    if (statusMsg.isEmpty) statusMsg = 'No status information found.';
-
-    Map<String, Map<String, String>> sections = {};
-    const tableFieldsets = {'Selected Schools', 'Uploaded Documents'};
-    const skipLegendContains = 'અરજીની સ્થિતિ';
-
-    for (final fs in allFieldsets) {
-      final legend = fs.querySelector('legend');
-      if (legend == null) continue;
-      final sectionTitle = legend.text.trim();
-      if (sectionTitle.contains(skipLegendContains)) continue;
-      if (tableFieldsets.contains(sectionTitle)) continue;
-
-      Map<String, String> sectionData = {};
-      for (final dl in fs.querySelectorAll('dl.row')) {
-        final children = dl.children
-            .where((el) => el.localName == 'dt' || el.localName == 'dd')
-            .toList();
-        for (var i = 0; i < children.length - 1; i++) {
-          if (children[i].localName == 'dt' &&
-              children[i + 1].localName == 'dd') {
-            final key = children[i].text
-                .trim()
-                .replaceAll(':', '')
-                .replaceAll(RegExp(r'\s+'), ' ')
-                .trim();
-            final value = children[i + 1].text
-                .trim()
-                .replaceAll(RegExp(r'\s+'), ' ')
-                .trim();
-            if (key.isNotEmpty) sectionData[key] = value;
-          }
-        }
-      }
-      if (sectionData.isNotEmpty) sections[sectionTitle] = sectionData;
-    }
-
-    List<List<String>> schools = [];
-    for (final fs in allFieldsets) {
-      final legend = fs.querySelector('legend');
-      if (legend != null && legend.text.trim() == 'Selected Schools') {
-        final table = fs.querySelector('table');
-        if (table != null) {
-          for (final row in table.querySelectorAll('tr')) {
-            final rowData = row
-                .querySelectorAll('th, td')
-                .map((c) => c.text.trim().replaceAll(RegExp(r'\s+'), ' '))
-                .toList();
-            if (rowData.any((c) => c.isNotEmpty)) schools.add(rowData);
-          }
-        }
-        break;
-      }
-    }
-
-    List<List<String>> documents = [];
-    for (final fs in allFieldsets) {
-      final legend = fs.querySelector('legend');
-      if (legend != null && legend.text.trim() == 'Uploaded Documents') {
-        final table = fs.querySelector('table');
-        if (table != null) {
-          for (final row in table.querySelectorAll('tr')) {
-            final rowData = row.querySelectorAll('th, td').map((c) {
-              final anchor = c.querySelector('a');
-              if (anchor != null) {
-                final href = anchor.attributes['href'] ?? '';
-                if (href.isEmpty) return '';
-                return href.startsWith('http')
-                    ? href
-                    : 'https://rte.orpgujarat.com$href';
-              }
-              return c.text.trim().replaceAll(RegExp(r'\s+'), ' ');
-            }).toList();
-            if (rowData.any((c) => c.isNotEmpty)) documents.add(rowData);
-          }
-        }
-        break;
-      }
-    }
-
-    return RteApplicationData(
-      applicationNumber: appNum,
-      statusMessage: statusMsg,
-      sections: sections,
-      schools: schools,
-      documents: documents,
-    );
-  }
 
   void _showSnackbar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(

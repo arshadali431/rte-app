@@ -10,6 +10,10 @@ class TokenModel {
   final String status; // "pending" | "in_progress" | "completed"
   final String? applicationId;
   final String? childDob;
+  final List<Map<String, dynamic>> applicationHistory;
+  final String? govStatus; // "APPROVED", "CANCELLED", "PENDING", "ERROR"
+  final String? govStatusMessage; // Full Gujarati text/Reason
+  final DateTime? lastSyncAt;
 
   TokenModel({
     required this.id,
@@ -21,6 +25,10 @@ class TokenModel {
     required this.status,
     this.applicationId,
     this.childDob,
+    this.applicationHistory = const [],
+    this.govStatus,
+    this.govStatusMessage,
+    this.lastSyncAt,
   });
 
   factory TokenModel.fromFirestore(Map<String, dynamic> data, String id) {
@@ -34,6 +42,10 @@ class TokenModel {
       status: data['status'] ?? 'pending',
       applicationId: data['applicationId'],
       childDob: data['childDob'],
+      applicationHistory: List<Map<String, dynamic>>.from(data['applicationHistory'] ?? []),
+      govStatus: data['govStatus'],
+      govStatusMessage: data['govStatusMessage'],
+      lastSyncAt: (data['lastSyncAt'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -47,6 +59,10 @@ class TokenModel {
       'status': status,
       'applicationId': applicationId,
       'childDob': childDob,
+      'applicationHistory': applicationHistory,
+      'govStatus': govStatus,
+      'govStatusMessage': govStatusMessage,
+      'lastSyncAt': lastSyncAt != null ? Timestamp.fromDate(lastSyncAt!) : null,
     };
   }
 }

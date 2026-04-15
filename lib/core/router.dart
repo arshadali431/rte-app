@@ -14,6 +14,7 @@ import '../screens/office/search_application_screen.dart';
 import '../screens/office/generated_token_screen.dart';
 import '../screens/office/token_detail_screen.dart';
 import '../screens/office/office_login_screen.dart';
+import '../screens/office/analysis_details_screen.dart';
 import '../screens/rte/rte_status_screen.dart';
 import '../screens/maintenance_screen.dart';
 import '../models/token_model.dart';
@@ -144,6 +145,20 @@ class AppRouter {
           state: state,
           child: const SearchApplicationScreen(),
         ),
+      ),
+      GoRoute(
+        path: '/office/analysis-details',
+        name: 'analysis-details',
+        pageBuilder: (context, state) {
+          final data = state.extra as Map<String, dynamic>;
+          return _buildPage(
+            state: state,
+            child: AnalysisDetailsScreen(
+              category: data['category'] as String,
+              tokens: data['tokens'] as List<TokenModel>,
+            ),
+          );
+        },
       ),
       GoRoute(
         path: '/rte/status-checker',

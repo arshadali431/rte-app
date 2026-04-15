@@ -8,6 +8,7 @@ import 'package:dio/dio.dart';
 import 'package:html/parser.dart' as parser;
 import 'package:url_launcher/url_launcher.dart';
 import '../../services/firestore_service.dart';
+import '../../services/rte_service.dart';
 import '../../models/token_model.dart';
 import '../../models.dart';
 import '../../core/utils.dart';
@@ -42,12 +43,6 @@ class _ApplicationStatusScreenState extends State<ApplicationStatusScreen>
   String? _error;
 
   // Real RTE Data Variables with Timeouts
-  final Dio _dio = Dio(BaseOptions(
-    connectTimeout: const Duration(seconds: 15),
-    receiveTimeout: const Duration(seconds: 15),
-    sendTimeout: const Duration(seconds: 15),
-  ));
-  
   RteApplicationData? _rteData;
   bool _rteLoading = false;
   String? _rteError;
@@ -136,49 +131,19 @@ class _ApplicationStatusScreenState extends State<ApplicationStatusScreen>
     });
 
     try {
-      debugPrint("--- RTE FETCH: STEP 1 (GET TOKEN) ---");
-      const String userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-
-      final getResponse = await _dio.get(
-        "https://rte.orpgujarat.com/ApplicationFormStatus",
-        options: Options(headers: {"User-Agent": userAgent}),
+      final data = await RteService().fetchApplicationStatus(
+        _token!.applicationId!.trim(),
+        _token!.childDob!.trim(),
+      );
+      
+      // Update Firestore with real government status
+      final String classified = RteService().classifyStatus(data.statusMessage);
+      await FirestoreService().updateGovStatus(
+        widget.tokenId,
+        govStatus: classified,
+        message: data.statusMessage,
       );
 
-      List<String> rawCookies = getResponse.headers["set-cookie"] ?? [];
-      String cookieString = rawCookies.map((e) => e.split(";")[0]).join("; ");
-
-      final tokenMatch = RegExp(r'name="__RequestVerificationToken".*?value="([^"]+)"', dotAll: true)
-          .firstMatch(getResponse.data.toString());
-
-      String? verifToken = tokenMatch?.group(1);
-
-      if (verifToken == null) {
-        throw Exception("Verification token missing");
-      }
-
-      debugPrint("--- RTE FETCH: STEP 2 (POST STATUS) ---");
-      final postResponse = await _dio.post(
-        "https://rte.orpgujarat.com/ApplicationFormStatus",
-        data: {
-          "__RequestVerificationToken": verifToken,
-          "ApplicationNumber": _token!.applicationId!.trim(),
-          "DateOfBirth": _token!.childDob!.trim(),
-        },
-        options: Options(
-          contentType: Headers.formUrlEncodedContentType,
-          headers: {
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Cookie": cookieString,
-            "Origin": "https://rte.orpgujarat.com",
-            "Referer": "https://rte.orpgujarat.com/ApplicationFormStatus",
-            "User-Agent": userAgent,
-          },
-          followRedirects: true,
-          validateStatus: (status) => status != null && status < 500,
-        ),
-      );
-
-      final data = _parseResponseNew(postResponse.data.toString());
       if (mounted) {
         setState(() {
           _rteData = data;
@@ -196,98 +161,6 @@ class _ApplicationStatusScreenState extends State<ApplicationStatusScreen>
     }
   }
 
-  RteApplicationData _parseResponseNew(String html) {
-    final doc = parser.parse(html);
-    String appNum = _token?.applicationId ?? '';
-    final cardHeader = doc.querySelector('.card-header');
-    if (cardHeader != null) {
-      final match = RegExp(r'(?:for\s+)([A-Z0-9/\-]+)').firstMatch(cardHeader.text);
-      if (match != null) appNum = match.group(1)!.trim();
-    }
-
-    String statusMsg = '';
-    final allFieldsets = doc.querySelectorAll('fieldset');
-    for (final fs in allFieldsets) {
-      final legend = fs.querySelector('legend');
-      if (legend != null && legend.text.trim().contains('અરજીની સ્થિતિ')) {
-        final p = fs.querySelector('p');
-        statusMsg = p != null ? p.text.trim() : fs.text.replaceAll(legend.text, '').trim();
-        break;
-      }
-    }
-    if (statusMsg.isEmpty) statusMsg = 'No status information found.';
-
-    Map<String, Map<String, String>> sections = {};
-    const tableFieldsets = {'Selected Schools', 'Uploaded Documents'};
-    const skipLegendContains = 'અરજીની સ્થિતિ';
-
-    for (final fs in allFieldsets) {
-      final legend = fs.querySelector('legend');
-      if (legend == null) continue;
-      final sectionTitle = legend.text.trim();
-      if (sectionTitle.contains(skipLegendContains)) continue;
-      if (tableFieldsets.contains(sectionTitle)) continue;
-
-      Map<String, String> sectionData = {};
-      for (final dl in fs.querySelectorAll('dl.row')) {
-        final children = dl.children.where((el) => el.localName == 'dt' || el.localName == 'dd').toList();
-        for (var i = 0; i < children.length - 1; i++) {
-          if (children[i].localName == 'dt' && children[i + 1].localName == 'dd') {
-            final key = children[i].text.trim().replaceAll(':', '').replaceAll(RegExp(r'\s+'), ' ').trim();
-            final value = children[i + 1].text.trim().replaceAll(RegExp(r'\s+'), ' ').trim();
-            if (key.isNotEmpty) sectionData[key] = value;
-          }
-        }
-      }
-      if (sectionData.isNotEmpty) sections[sectionTitle] = sectionData;
-    }
-
-    List<List<String>> schools = [];
-    for (final fs in allFieldsets) {
-      final legend = fs.querySelector('legend');
-      if (legend != null && legend.text.trim() == 'Selected Schools') {
-        final table = fs.querySelector('table');
-        if (table != null) {
-          for (final row in table.querySelectorAll('tr')) {
-            final rowData = row.querySelectorAll('th, td').map((c) => c.text.trim().replaceAll(RegExp(r'\s+'), ' ')).toList();
-            if (rowData.any((c) => c.isNotEmpty)) schools.add(rowData);
-          }
-        }
-        break;
-      }
-    }
-
-    List<List<String>> documents = [];
-    for (final fs in allFieldsets) {
-      final legend = fs.querySelector('legend');
-      if (legend != null && legend.text.trim() == 'Uploaded Documents') {
-        final table = fs.querySelector('table');
-        if (table != null) {
-          for (final row in table.querySelectorAll('tr')) {
-            final rowData = row.querySelectorAll('th, td').map((c) {
-              final anchor = c.querySelector('a');
-              if (anchor != null) {
-                final href = anchor.attributes['href'] ?? '';
-                if (href.isEmpty) return '';
-                return href.startsWith('http') ? href : 'https://rte.orpgujarat.com$href';
-              }
-              return c.text.trim().replaceAll(RegExp(r'\s+'), ' ');
-            }).toList();
-            if (rowData.any((c) => c.isNotEmpty)) documents.add(rowData);
-          }
-        }
-        break;
-      }
-    }
-
-    return RteApplicationData(
-      applicationNumber: appNum,
-      statusMessage: statusMsg,
-      sections: sections,
-      schools: schools,
-      documents: documents,
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -648,6 +521,7 @@ class _ApplicationStatusScreenState extends State<ApplicationStatusScreen>
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: DataTable(
+              showCheckboxColumn: false,
               columns: rows[0].map((h) => DataColumn(label: Text(h))).toList(),
               rows: rows.skip(1).map((row) {
                 return DataRow(

@@ -75,4 +75,24 @@ A high-efficiency background system that ensures all physical documents are redu
 
 ---
 
+## 📅 Major Update: Aadhaar Workflow & UI Hardening
+
+### 🚀 High-Performance Aadhaar Overhaul
+Implemented a mission-critical, high-performance Aadhaar document management system:
+- **Clean Flow Architecture**: Forced guided workflow: **Capture Front ➔ Crop ➔ Capture Back ➔ Crop ➔ Background Merge ➔ Full-Screen Preview ➔ Final Upload**.
+- **Background Image Merging**: Heavy image processing (decoding/merging) offloaded to background isolates using `compute()` to ensure 60fps UI performance.
+- **Intelligent Memory Protection**: Automated resolution management that resizes high-res captures (max 1000px height) before merging to prevent **Out-of-Memory (OOM)** crashes on budget devices while maintaining text legibility.
+- **Full-Screen Interactive Preview**: A new dedicated preview screen with **Pinch-to-Zoom** and interactive verification steps before final submission.
+
+### 🎨 Premium UI/UX Enhancements
+- **Modern Processing Overlays**: Redesigned the "Wait for Processing" UI with a semi-transparent blur, centered premium white-cards, and smooth circular loaders (replacing basic system loaders).
+- **Legibility Updates**: Unified all system **SnackBars** to use high-contrast white text styles for instant readability on both success (green) and error (red) states.
+- **Smarter Government Status**: refined the portal feedback system—"No status information found" is now treated as a neutral grey state with a clear "DATA NOT FOUND" label, improving user perception.
+
+### 📋 Document Management Expansion
+- **Extended Mandatory Set**: Now requires **7 core documents**, including the newly added `Child Aadhaar Card` and `Parent Signature`.
+- **Dynamic Doc Vault**: Added support for up to **3 additional custom documents** (e.g., Caste Certificate) with unique naming and dedicated storage paths.
+
+---
+
 *Engineered with precision by [Arshadalibhorania](https://github.com/bhoraniaarshadali)*

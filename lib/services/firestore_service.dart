@@ -94,12 +94,29 @@ class FirestoreService {
     String status, {
     String? applicationId,
     String? childDob,
+    Map<String, dynamic>? historyEntry,
   }) async {
     final Map<String, dynamic> data = {'status': status};
     if (applicationId != null) data['applicationId'] = applicationId;
     if (childDob != null) data['childDob'] = childDob;
     
+    if (historyEntry != null) {
+      data['applicationHistory'] = FieldValue.arrayUnion([historyEntry]);
+    }
+    
     await _db.collection(AppConstants.kTokensCollection).doc(tokenId).update(data);
+  }
+
+  Future<void> updateGovStatus(
+    String tokenId, {
+    required String govStatus,
+    required String message,
+  }) async {
+    await _db.collection(AppConstants.kTokensCollection).doc(tokenId).update({
+      'govStatus': govStatus,
+      'govStatusMessage': message,
+      'lastSyncAt': FieldValue.serverTimestamp(),
+    });
   }
 
   // ────────── Child Operations ──────────
@@ -150,6 +167,10 @@ class FirestoreService {
         .collection(AppConstants.kDocumentsCollection)
         .doc(docId)
         .delete();
+  }
+
+  Future<void> deleteToken(String tokenId) async {
+    await _db.collection(AppConstants.kTokensCollection).doc(tokenId).delete();
   }
 
   // ────────── Search & Recent ──────────

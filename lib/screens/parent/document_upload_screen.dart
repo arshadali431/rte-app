@@ -1,4 +1,5 @@
 import 'dart:io';
+import '../../core/image_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
@@ -25,6 +26,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
   List<DocumentModel> _uploadedDocs = [];
   bool _isLoading = true;
   String? _uploadingType;
+  bool _isProcessing = false;
   final Set<String> _deletingIds = {};
 
   @override
@@ -54,6 +56,25 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
   }
 
   Future<void> _pickAndUpload(String docType) async {
+    if (_checkIfAadhaar(docType)) {
+      final type = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: Colors.white,
+          title: Text('Aadhaar Type', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+          content: Text('Is this a small card-size Aadhaar or a full-page Aadhaar?', style: GoogleFonts.outfit()),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, 'full'), child: Text('Full Page', style: GoogleFonts.outfit(color: const Color(0xFF00796B)))),
+            TextButton(onPressed: () => Navigator.pop(context, 'card'), child: Text('Card Size', style: GoogleFonts.outfit(color: const Color(0xFF00796B)))),
+          ],
+        ),
+      );
+      if (type == 'card') {
+        _pickMergeAndUpload(docType);
+        return;
+      }
+    }
+
     final picker = ImagePicker();
 
     final source = await showModalBottomSheet<ImageSource>(
@@ -210,6 +231,230 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
     }
   }
 
+  bool _checkIfAadhaar(String type) {
+    final t = type.toLowerCase();
+    return t.contains('aadhaar') || t.contains('adhar') || t.contains('aadhar');
+  }
+
+  Future<File?> _pickAndCropImage(String side) async {
+    final picker = ImagePicker();
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 16),
+            Text('Select $side Image', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18, color: const Color(0xFF00796B))),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.camera_alt_rounded, color: Color(0xFF00796B)),
+              title: Text('Take Photo', style: GoogleFonts.outfit(fontWeight: FontWeight.w600)),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_rounded, color: Color(0xFF00796B)),
+              title: Text('Choose from Gallery', style: GoogleFonts.outfit(fontWeight: FontWeight.w600)),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+
+    if (source == null) return null;
+
+    final XFile? pickedFile = await picker.pickImage(source: source);
+    if (pickedFile == null) return null;
+
+    final croppedFile = await ImageCropper().cropImage(
+      sourcePath: pickedFile.path,
+      uiSettings: [
+        AndroidUiSettings(
+          toolbarTitle: 'Crop $side Side',
+          toolbarColor: const Color(0xFF00796B),
+          toolbarWidgetColor: Colors.white,
+          initAspectRatio: CropAspectRatioPreset.original,
+          lockAspectRatio: false,
+        ),
+        IOSUiSettings(title: 'Crop $side Side'),
+      ],
+    );
+
+    return croppedFile != null ? File(croppedFile.path) : null;
+  }
+
+  Future<void> _pickMergeAndUpload(String docType) async {
+    // 1. Pick & Crop Front
+    final frontFile = await _pickAndCropImage('FRONT');
+    if (frontFile == null) return;
+
+    // 2. Pick & Crop Back
+    final backFile = await _pickAndCropImage('BACK');
+    if (backFile == null) return;
+
+    setState(() {
+      _isProcessing = true;
+      _uploadingType = null;
+    });
+
+    try {
+      // 3. Merge
+      final mergedFile = await ImageUtils.mergeImagesHorizontally(frontFile, backFile);
+      
+      setState(() => _isProcessing = false);
+      
+      if (mergedFile == null) throw 'Merge failed';
+
+      // 4. Preview
+      if (!mounted) return;
+      
+      final bool? confirmUpload = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (context) => Scaffold(
+            backgroundColor: Colors.white,
+            appBar: AppBar(
+              backgroundColor: Colors.white,
+              elevation: 0,
+              title: Text('Aadhaar Preview', style: GoogleFonts.outfit(color: Colors.black, fontWeight: FontWeight.bold)),
+              leading: IconButton(
+                icon: const Icon(Icons.close, color: Colors.black),
+                onPressed: () => Navigator.pop(context, false),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: Text('UPLOAD', 
+                    style: GoogleFonts.outfit(color: const Color(0xFF00796B), fontWeight: FontWeight.bold, fontSize: 16)),
+                ),
+                const SizedBox(width: 8),
+              ],
+            ),
+            body: Center(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    InteractiveViewer(
+                      maxScale: 5.0,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: Image.file(mergedFile, fit: BoxFit.contain),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 40),
+                      child: Text(
+                        'Confirm that the front and back of the Aadhaar card are clearly joined and readable.',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.outfit(color: Colors.black54, fontSize: 14),
+                      ),
+                    ),
+                    const SizedBox(height: 40),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: SizedBox(
+                        width: double.infinity,
+                        height: 56,
+                        child: ElevatedButton.icon(
+                          onPressed: () => Navigator.pop(context, true),
+                          icon: const Icon(Icons.cloud_upload_rounded),
+                          label: Text('Looks Good, Upload Now', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF00796B),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            elevation: 0,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      if (confirmUpload != true) return;
+
+      // 5. Final Upload
+      setState(() => _uploadingType = docType);
+      final downloadUrl = await StorageService().uploadDocument(_tokenId!, docType, mergedFile);
+      if (downloadUrl != null) {
+        final docModel = DocumentModel(
+          docType: docType,
+          fileName: 'merged_aadhaar.jpg',
+          storagePath: downloadUrl,
+          uploadedAt: DateTime.now(),
+        );
+        await FirestoreService().addDocument(_tokenId!, docModel);
+        await _loadData();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Merged Aadhaar uploaded successfully', style: GoogleFonts.outfit(color: Colors.white)),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ));
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _uploadingType = null);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error: $e', style: GoogleFonts.outfit(color: Colors.white)),
+          backgroundColor: Colors.redAccent,
+        ));
+      }
+    }
+  }
+
+  Future<void> _addCustomDocument() async {
+    final controller = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text('Add Other Document', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: InputDecoration(
+            labelText: 'Document Name',
+            hintText: 'e.g. Caste Certificate',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          textCapitalization: TextCapitalization.words,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text('Cancel', style: GoogleFonts.outfit(color: Colors.grey))),
+          ElevatedButton(
+            onPressed: () {
+              if (controller.text.trim().isNotEmpty) Navigator.pop(context, true);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00796B), foregroundColor: Colors.white),
+            child: Text('Add & Upload', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      _pickAndUpload(controller.text.trim());
+    }
+  }
+
   void _viewDocument(DocumentModel doc) {
     showDialog(
       context: context,
@@ -325,8 +570,8 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Document deleted successfully'),
+          SnackBar(
+            content: Text('Document deleted successfully', style: GoogleFonts.outfit(color: Colors.white)),
             backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
           ),
@@ -335,8 +580,8 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to delete. Please try again.'),
+          SnackBar(
+            content: Text('Failed to delete. Please try again.', style: GoogleFonts.outfit(color: Colors.white)),
             backgroundColor: Colors.redAccent,
             behavior: SnackBarBehavior.floating,
           ),
@@ -353,9 +598,11 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
         .where((d) => AppConstants.mandatoryDocTypes.contains(d.docType))
         .length;
 
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
+    return Stack(
+      children: [
+        Scaffold(
+          backgroundColor: Colors.grey[50],
+          appBar: AppBar(
         title: Text(
           'Document Vault',
           style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
@@ -426,46 +673,101 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(20, 32, 20, 12),
-                      child: Text(
-                        'OPTIONAL DOCUMENTS',
-                        style: GoogleFonts.outfit(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                          color: Colors.blueGrey[600],
-                          letterSpacing: 1.2,
-                        ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'OTHER DOCUMENTS (MAX 3)',
+                              style: GoogleFonts.outfit(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                color: Colors.blueGrey[600],
+                                letterSpacing: 1.2,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (_uploadedDocs.where((d) => !AppConstants.mandatoryDocTypes.contains(d.docType)).length < 3)
+                            TextButton.icon(
+                              onPressed: _addCustomDocument,
+                              icon: const Icon(Icons.add_circle_outline_rounded, size: 16, color: Color(0xFF00796B)),
+                              label: Text('Add New', style: GoogleFonts.outfit(color: const Color(0xFF00796B), fontSize: 12, fontWeight: FontWeight.bold)),
+                            ),
+                        ],
                       ),
                     ),
                   ),
-                  SliverList(
-                    delegate: SliverChildBuilderDelegate((context, index) {
-                      final type = AppConstants.optionalDocTypes[index];
-                      final existing = _uploadedDocs.firstWhere(
-                        (d) => d.docType == type,
-                        orElse: () => DocumentModel(
-                          id: '',
-                          docType: '',
-                          fileName: '',
-                          storagePath: '',
+                  _uploadedDocs.where((d) => !AppConstants.mandatoryDocTypes.contains(d.docType)).isEmpty
+                    ? SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                          child: Text('No additional documents uploaded', style: GoogleFonts.outfit(color: Colors.grey[400], fontSize: 12)),
                         ),
-                      );
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: _buildDocCard(
-                          type,
-                          existing.storagePath.isNotEmpty ? existing : null,
-                          isMandatory: false,
-                        ),
-                      );
-                    }, childCount: AppConstants.optionalDocTypes.length),
-                  ),
+                      )
+                    : SliverList(
+                        delegate: SliverChildBuilderDelegate((context, index) {
+                          final customDocs = _uploadedDocs.where((d) => !AppConstants.mandatoryDocTypes.contains(d.docType)).toList();
+                          final doc = customDocs[index];
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: _buildDocCard(
+                               doc.docType,
+                               doc,
+                               isMandatory: false,
+                            ),
+                          );
+                        }, childCount: _uploadedDocs.where((d) => !AppConstants.mandatoryDocTypes.contains(d.docType)).length),
+                      ),
                   const SliverToBoxAdapter(child: SizedBox(height: 40)),
                 ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+        if (_isProcessing)
+          Container(
+            color: Colors.black.withOpacity(0.6),
+            child: Center(
+              child: Container(
+                width: 200,
+                padding: const EdgeInsets.all(32),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(28),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF00796B),
+                        strokeWidth: 4,
+                        strokeCap: StrokeCap.round,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      'Wait for Processing',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Joining Aadhaar Sides...',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.outfit(color: Colors.grey, fontSize: 12),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-        ],
-      ),
+      ],
     );
   }
 
@@ -531,8 +833,17 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
     final isUploading = _uploadingType == type;
     final isDeleting = doc != null && _deletingIds.contains(doc.id!);
     final String label = AppConstants.docTypeNames[type] ?? type;
-    final IconData icon =
-        AppConstants.docTypeIcons[type] ?? Icons.description_outlined;
+    
+    IconData icon = Icons.description_outlined;
+    if (AppConstants.docTypeIcons.containsKey(type)) {
+      icon = AppConstants.docTypeIcons[type]!;
+    } else {
+      final low = type.toLowerCase();
+      if (low.contains('photo')) icon = Icons.face_rounded;
+      if (low.contains('birth')) icon = Icons.cake_rounded;
+      if (low.contains('cert')) icon = Icons.verified_rounded;
+      if (low.contains('aadhaar') || low.contains('pan')) icon = Icons.credit_card_rounded;
+    }
 
     Color leftBorderColor = Colors.grey[300]!;
     if (doc != null) {
