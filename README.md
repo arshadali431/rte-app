@@ -95,4 +95,52 @@ Implemented a mission-critical, high-performance Aadhaar document management sys
 
 ---
 
+## 🔌 Plug & Play: Migration & Deployment Guide
+
+This section outlines how to migrate the entire system (App + Firebase + Google Drive Sync) to a completely new account or environment.
+
+### 1. Firebase Project Setup (The Foundation)
+1.  Create a new project on the [Firebase Console](https://console.firebase.google.com/).
+2.  Enable **Firestore Database** in test mode initially, then update rules.
+3.  Enable **Firebase Storage**.
+4.  Activate **Google Authentication** (optional) or ensure email/pass is enabled if needed.
+5.  **Android App**: Register your app with package name `com.example.rte_status_checker`.
+6.  **Google-Services**: Download the new `google-services.json` and replace the one in `android/app/`.
+
+### 2. Google Cloud & Drive API (The Sync Hub)
+To sync files to a new Google Drive:
+1.  Go to [Google Cloud Console](https://console.cloud.google.com/).
+2.  Select your Firebase project.
+3.  **Enable APIs**: Enable the **Google Drive API**.
+4.  **OAuth Consent Screen**:
+    - Select "External".
+    - Add `.../auth/drive.file` and `.../auth/drive` scopes.
+    - Add your email as a **Test User** (Crucial: OAuth won't work without this in testing).
+5.  **Credentials**: 
+    - Create an **OAuth 2.0 Client ID** (Type: Web Application).
+    - Note down your **Client ID** and **Client Secret**.
+6.  **Refresh Token**: Use an OAuth playground or a script to authorize your account and get the **Refresh Token**.
+
+### 3. Cloud Functions (The Engine)
+1.  Navigate to the `/functions` folder in the project.
+2.  Open `index.js` and update these constants with your new credentials:
+    ```javascript
+    const CLIENT_ID = 'YOUR_NEW_CLIENT_ID';
+    const CLIENT_SECRET = 'YOUR_NEW_CLIENT_SECRET';
+    const REFRESH_TOKEN = 'YOUR_NEW_REFRESH_TOKEN';
+    const DRIVE_FOLDER_ID = 'YOUR_TARGET_GOOGLE_DRIVE_FOLDER_ID';
+    ```
+3.  **Deploy**: Run `firebase use <new-project-id>` followed by `firebase deploy --only functions`.
+
+### 4. Database Initialization
+Ensure the following collections exist or are initialized via first use:
+- `tokens`: Primary token store.
+- `meta`: Store `token_counter` doc with `{ "current": 100 }` to start token numbering.
+
+### 5. Final Build
+- Run `flutter clean` ➔ `flutter pub get`.
+- Build the APK or run the app. It will now point to the new Firebase project and sync documents to the new Google Drive account.
+
+---
+
 *Engineered with precision by [Arshadalibhorania](https://github.com/bhoraniaarshadali)*
