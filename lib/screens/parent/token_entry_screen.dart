@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
@@ -116,7 +117,13 @@ class _TokenEntryScreenState extends State<TokenEntryScreen>
           );
         },
       ),
-    ).then((result) => _processQrResult(result));
+    ).then((result) {
+      if (result == 'gallery') {
+        _scanFromGallery();
+      } else {
+        _processQrResult(result);
+      }
+    });
   }
 
   Future<void> _scanFromGallery() async {
@@ -197,103 +204,159 @@ class _TokenEntryScreenState extends State<TokenEntryScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Column(
+      body: Stack(
         children: [
-          const NoInternetBanner(),
-          Expanded(
+          // 1. Dynamic Background Gradient
+          Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF004D40), // Deep Teal
+                  Color(0xFF00251A), // Darker Teal
+                  Color(0xFF0D2B2B), // Very Dark
+                ],
+              ),
+            ),
+          ),
+          
+          // 2. Decorative Background blobs
+          Positioned(
+            top: -60,
+            left: -60,
             child: Container(
-              width: double.infinity,
-              height: double.infinity,
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFF0D2B2B),
-                    Color(0xFF004D40),
-                    Color(0xFF00796B),
-                  ],
-                ),
+              width: 250,
+              height: 250,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF00796B).withOpacity(0.12),
               ),
-        child: SafeArea(
-          child: Column(
+            ),
+          ),
+
+          // 3. Content
+          Column(
             children: [
-              // Back button top left
-              Align(
-                alignment: Alignment.topLeft,
-                child: IconButton(
-                  onPressed: () => context.go('/role'), // go to role, NOT pop
-                  icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                      color: Colors.white),
-                ),
-              ),
-
+              const NoInternetBanner(),
               Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Icon
-                    Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF00796B).withOpacity(0.15),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.qr_code_scanner_rounded,
-                          size: 64, color: Color(0xFF81D4FA)),
-                    ),
-                    const SizedBox(height: 32),
-
-                    Text('Scan Your Token',
-                        style: GoogleFonts.outfit(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white)),
-                    const SizedBox(height: 8),
-                    Text('Scan the QR code given by our office',
-                        style: GoogleFonts.outfit(
-                            fontSize: 15, color: Colors.white54),
-                        textAlign: TextAlign.center),
-
-                    const SizedBox(height: 48),
-
-                    // Scan button
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 40),
-                      child: SizedBox(
-                        width: double.infinity,
-                        height: 56,
-                        child: ElevatedButton.icon(
-                          onPressed: _isLoading ? null : _showScanOptions,
-                          icon: const Icon(Icons.qr_code_scanner_rounded),
-                          label: Text('Scan QR Code',
-                              style: GoogleFonts.outfit(
-                                  fontSize: 18, fontWeight: FontWeight.bold)),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF00796B),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16)),
-                            elevation: 0,
+                child: SafeArea(
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 12),
+                      // Back Button
+                      Align(
+                        alignment: Alignment.topLeft,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                          child: InkWell(
+                            onTap: () => context.go('/role'),
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.05),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.arrow_back_ios_new_rounded,
+                                color: Colors.white70,
+                                size: 18,
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-
-                    if (_isLoading) ...[
-                      const SizedBox(height: 24),
-                      const CircularProgressIndicator(color: Color(0xFF81D4FA)),
+                      
+                      const Spacer(),
+                      
+                      // Scanner Visual
+                      Container(
+                        padding: const EdgeInsets.all(32),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF4DB6AC).withOpacity(0.08),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: const Color(0xFF4DB6AC).withOpacity(0.2),
+                            width: 2,
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.qr_code_scanner_rounded,
+                          size: 72,
+                          color: Color(0xFF4DB6AC),
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 40),
+                      Text(
+                        'Scan Your Token',
+                        style: GoogleFonts.outfit(
+                          fontSize: 34,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 40),
+                        child: Text(
+                          'Scan the QR code provided by the RTE office to access your application dashboard',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.outfit(
+                            fontSize: 15,
+                            color: Colors.white.withOpacity(0.5),
+                            height: 1.5,
+                          ),
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 60),
+                      
+                      // Scan Button
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 40.0),
+                        child: SizedBox(
+                          width: double.infinity,
+                          height: 60,
+                          child: ElevatedButton.icon(
+                            onPressed: _isLoading ? null : _showScanOptions,
+                            icon: const Icon(Icons.qr_code_scanner_rounded),
+                            label: Text(
+                              'Scan QR Code',
+                              style: GoogleFonts.outfit(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF00796B),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      
+                      if (_isLoading) ...[
+                        const SizedBox(height: 32),
+                        const CircularProgressIndicator(color: Color(0xFF4DB6AC)),
+                      ],
+                      
+                      const Spacer(flex: 2),
                     ],
-                  ],
+                  ),
                 ),
               ),
             ],
           ),
-        ),
+        ],
       ),
-    ),
-  ],
-),
     );
   }
 }
@@ -359,52 +422,200 @@ class _TokenQrScannerState extends State<_TokenQrScanner> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close_rounded, color: Colors.white, size: 28),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-      ),
-      extendBodyBehindAppBar: true,
       body: Stack(
         children: [
+          // 1. Camera View
           MobileScanner(
             controller: _controller,
             onDetect: _onDetect,
           ),
           
-          // Overlay
-          Center(
-            child: Container(
-              width: 250,
-              height: 250,
-              decoration: BoxDecoration(
-                border: Border.all(color: const Color(0xFF81D4FA), width: 2),
-                borderRadius: BorderRadius.circular(20),
-              ),
+          // 2. Futuristic Overlay
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.4),
+            ),
+            child: Stack(
+              children: [
+                Center(
+                  child: Container(
+                    width: 260,
+                    height: 260,
+                    decoration: BoxDecoration(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(32),
+                    ),
+                    // Using BlendMode.clear to create the scanner hole
+                    child: Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: const Color(0xFF4DB6AC).withOpacity(0.15),
+                          width: 1,
+                        ),
+                        borderRadius: BorderRadius.circular(32),
+                      ),
+                    ),
+                  ),
+                ),
+                // Glowing Corners
+                Center(
+                  child: SizedBox(
+                    width: 260,
+                    height: 260,
+                    child: Stack(
+                      children: [
+                        _buildCorner(Alignment.topLeft, 0, 0),
+                        _buildCorner(Alignment.topRight, 1.57, 0),
+                        _buildCorner(Alignment.bottomLeft, -1.57, 0),
+                        _buildCorner(Alignment.bottomRight, 3.14, 0),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          
+
+          // 3. Top Controls (Close & Flash)
           Positioned(
-            bottom: 100,
-            left: 0, right: 0,
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20)),
-                child: Text(
-                  "Point camera at office QR code",
-                  style: GoogleFonts.outfit(color: Colors.white, fontSize: 16),
+            top: 50,
+            left: 20,
+            right: 20,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildGlassButton(
+                  icon: Icons.close_rounded,
+                  onTap: () => Navigator.of(context).pop(),
                 ),
-              ),
+                _buildGlassButton(
+                  icon: Icons.flash_on_rounded,
+                  onTap: () => _controller.toggleTorch(),
+                ),
+              ],
+            ),
+          ),
+
+          // 4. Bottom Instructions & Gallery
+          Positioned(
+            bottom: 60,
+            left: 0,
+            right: 0,
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white.withOpacity(0.1)),
+                  ),
+                  child: Text(
+                    "Point camera at parent's QR code",
+                    style: GoogleFonts.outfit(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 32),
+                // Upload from gallery glass button
+                InkWell(
+                  onTap: () {
+                    Navigator.of(context).pop('gallery'); // Signal to open gallery
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 18),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFF4DB6AC).withOpacity(0.9),
+                          const Color(0xFF00796B),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF4DB6AC).withOpacity(0.3),
+                          blurRadius: 15,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.photo_library_rounded, color: Colors.white, size: 20),
+                        const SizedBox(width: 12),
+                        Text(
+                          "Upload from Gallery",
+                          style: GoogleFonts.outfit(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
 
           if (_isProcessing)
-            Container(color: Colors.black54, child: const Center(child: CircularProgressIndicator(color: Color(0xFF81D4FA)))),
+            Container(
+              color: Colors.black.withOpacity(0.7),
+              child: const Center(
+                child: CircularProgressIndicator(color: Color(0xFF4DB6AC)),
+              ),
+            ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildGlassButton({required IconData icon, required VoidCallback onTap, Color color = Colors.white70}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withOpacity(0.1)),
+            ),
+            child: Icon(icon, color: color, size: 24),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCorner(Alignment alignment, double angle, double offset) {
+    return Align(
+      alignment: alignment,
+      child: Transform.rotate(
+        angle: angle,
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: const BoxDecoration(
+            border: Border(
+              top: BorderSide(color: Color(0xFF4DB6AC), width: 4),
+              left: BorderSide(color: Color(0xFF4DB6AC), width: 4),
+            ),
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(12),
+            ),
+          ),
+        ),
       ),
     );
   }

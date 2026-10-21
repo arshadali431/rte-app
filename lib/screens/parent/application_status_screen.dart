@@ -131,17 +131,24 @@ class _ApplicationStatusScreenState extends State<ApplicationStatusScreen>
     });
 
     try {
-      final data = await RteService().fetchApplicationStatus(
+      final result = await RteService().fetchStatusWithChildName(
         _token!.applicationId!.trim(),
         _token!.childDob!.trim(),
       );
-      
+
       // Update Firestore with real government status
-      final String classified = RteService().classifyStatus(data.statusMessage);
       await FirestoreService().updateGovStatus(
         widget.tokenId,
-        govStatus: classified,
-        message: data.statusMessage,
+        govStatus: result.classifiedStatus,
+        message: result.statusMessage,
+        govChildName: result.childName,
+      );
+
+      // For the full rich display we still need the parsed HTML data — reuse
+      // the legacy path here (parent screen shows detailed sections).
+      final data = await RteService().fetchApplicationStatus(
+        _token!.applicationId!.trim(),
+        _token!.childDob!.trim(),
       );
 
       if (mounted) {
@@ -151,7 +158,7 @@ class _ApplicationStatusScreenState extends State<ApplicationStatusScreen>
         });
       }
     } catch (e) {
-      debugPrint("RTE FETCH ERROR: $e");
+      debugPrint('RTE FETCH ERROR: $e');
       if (mounted) {
         setState(() {
           _rteError = 'Unable to connect to government portal. Please check your internet connection and try again.';
@@ -308,7 +315,7 @@ class _ApplicationStatusScreenState extends State<ApplicationStatusScreen>
             child: Text(
               label,
               style: GoogleFonts.outfit(
-                color: Colors.grey[500], 
+                color: Colors.black87, 
                 fontSize: 13,
               ),
             ),
@@ -478,7 +485,7 @@ class _ApplicationStatusScreenState extends State<ApplicationStatusScreen>
                     children: [
                       Expanded(
                         flex: 2,
-                        child: Text(e.key, style: TextStyle(fontSize: 13, color: Colors.grey[600], fontWeight: FontWeight.w500)),
+                        child: Text(e.key, style: TextStyle(fontSize: 13, color: Colors.black87, fontWeight: FontWeight.w500)),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
@@ -513,7 +520,7 @@ class _ApplicationStatusScreenState extends State<ApplicationStatusScreen>
               children: [
                 Icon(icon, color: const Color(0xFF00796B), size: 22),
                 const SizedBox(width: 12),
-                Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
               ],
             ),
           ),
@@ -522,10 +529,10 @@ class _ApplicationStatusScreenState extends State<ApplicationStatusScreen>
             scrollDirection: Axis.horizontal,
             child: DataTable(
               showCheckboxColumn: false,
-              columns: rows[0].map((h) => DataColumn(label: Text(h))).toList(),
+              columns: rows[0].map((h) => DataColumn(label: Text(h, style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)))).toList(),
               rows: rows.skip(1).map((row) {
                 return DataRow(
-                  cells: row.map((c) => DataCell(Text(c, style: GoogleFonts.notoSansGujarati(fontSize: 11)))).toList(),
+                  cells: row.map((c) => DataCell(Text(c, style: GoogleFonts.notoSansGujarati(fontSize: 11, color: Colors.black87)))).toList(),
                 );
               }).toList(),
             ),
@@ -555,7 +562,7 @@ class _ApplicationStatusScreenState extends State<ApplicationStatusScreen>
               children: [
                 const Icon(Icons.file_present_rounded, color: Color(0xFF00796B), size: 22),
                 const SizedBox(width: 12),
-                const Text('Uploaded Documents', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const Text('Uploaded Documents', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
               ],
             ),
           ),
@@ -585,8 +592,8 @@ class _ApplicationStatusScreenState extends State<ApplicationStatusScreen>
                   decoration: BoxDecoration(color: const Color(0xFF00796B).withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
                   child: Icon(docIcon, color: const Color(0xFF00796B), size: 22),
                 ),
-                title: Text(category, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                subtitle: Text(size, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+                title: Text(category, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black)),
+                subtitle: Text(size, style: const TextStyle(fontSize: 12, color: Colors.black45)),
                 trailing: url.isNotEmpty
                     ? ElevatedButton.icon(
                         onPressed: () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),

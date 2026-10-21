@@ -44,8 +44,9 @@ class _NewTokenScreenState extends State<NewTokenScreen> {
       final tokenDocId = await FirestoreService().createToken(
         _nameController.text.trim(),
         _mobileController.text.trim(),
-        'office', // createdBy
+        'office',
       );
+      FirestoreService().invalidateCache(); // Bust count cache so dashboard shows +1
 
       // Fetch the created token to get tokenNumber and verify
       final token = await FirestoreService().getTokenById(tokenDocId);
@@ -80,157 +81,241 @@ class _NewTokenScreenState extends State<NewTokenScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0D2B2B),
-      appBar: AppBar(
-        title: Text('New Token', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.transparent,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go('/office/dashboard');
-            }
-          },
-        ),
-      ),
-      body: Column(
+      body: Stack(
         children: [
-          const NoInternetBanner(),
-          Expanded(
-            child: Container(
-              width: double.infinity,
-              height: double.infinity,
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFF0D2B2B),
-                    Color(0xFF004D40),
-                    Color(0xFF00796B),
-                  ],
-                ),
+          // 1. Dynamic Background Gradient
+          Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF004D40), // Deep Teal
+                  Color(0xFF00251A), // Darker Teal
+                  Color(0xFF0D2B2B), // Very Dark
+                ],
               ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Realtime Token Number Display Card
-                Container(
-                  width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A3535),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                        color: const Color(0xFF81D4FA).withOpacity(0.3),
-                        width: 1.5),
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        'TOKEN WILL BE ALLOCATED',
-                        style: GoogleFonts.outfit(
-                          fontSize: 11,
-                          color: Colors.white38,
-                          letterSpacing: 1.5,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      _nextTokenNumber == null
-                          ? const SizedBox(
-                              height: 48,
-                              width: 48,
-                              child: CircularProgressIndicator(
-                                color: Color(0xFF81D4FA),
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : Text(
-                              '#$_nextTokenNumber',
-                              style: GoogleFonts.outfit(
-                                fontSize: 56,
-                                fontWeight: FontWeight.bold,
-                                color: const Color(0xFF81D4FA),
-                                height: 1,
-                              ),
-                            ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'This number updates live',
-                        style: GoogleFonts.outfit(
-                          fontSize: 11,
-                          color: Colors.white24,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 32),
-
-                _buildInputLabel('Parent Name'),
-                TextFormField(
-                  controller: _nameController,
-                  style: const TextStyle(color: Colors.white),
-                  textCapitalization: TextCapitalization.words,
-                  decoration: _inputDecoration(
-                      'Enter full name', Icons.person_outline_rounded),
-                  validator: (v) => v!.isEmpty ? 'Name is required' : null,
-                ),
-                const SizedBox(height: 24),
-                _buildInputLabel('Parent Mobile'),
-                TextFormField(
-                  controller: _mobileController,
-                  keyboardType: TextInputType.phone,
-                  maxLength: 10,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  style: const TextStyle(color: Colors.white),
-                  decoration: _inputDecoration(
-                      '10-digit number', Icons.phone_iphone_rounded),
-                  validator: (v) =>
-                      v!.length != 10 ? 'Enter valid 10-digit number' : null,
-                ),
-                const SizedBox(height: 60),
-                SizedBox(
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _generateToken,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF00796B),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16)),
-                      elevation: 0,
-                    ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 24,
-                            width: 24,
-                            child: CircularProgressIndicator(
-                                color: Colors.white, strokeWidth: 2))
-                        : Text('Generate Token',
-                            style: GoogleFonts.outfit(
-                                fontSize: 18, fontWeight: FontWeight.bold)),
-                  ),
-                ),
-              ],
             ),
           ),
-        ),
+          
+          // 2. Decorative Background blobs
+          Positioned(
+            top: -50,
+            right: -50,
+            child: Container(
+              width: 250,
+              height: 250,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF00796B).withOpacity(0.1),
+              ),
+            ),
+          ),
+
+          // 3. Content
+          Column(
+            children: [
+              const NoInternetBanner(),
+              Expanded(
+                child: SafeArea(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const SizedBox(height: 12),
+                          // Premium Navigation Header
+                          Row(
+                            children: [
+                              InkWell(
+                                onTap: () {
+                                  if (context.canPop()) {
+                                    context.pop();
+                                  } else {
+                                    context.go('/office/dashboard');
+                                  }
+                                },
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.05),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Icon(
+                                    Icons.arrow_back_ios_new_rounded,
+                                    color: Colors.white70,
+                                    size: 18,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Text(
+                                'New Token',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                          
+                          const SizedBox(height: 32),
+                          
+                          // Realtime Token Number Display Card (Enhanced Glassmorphism)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(32),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.06),
+                              borderRadius: BorderRadius.circular(32),
+                              border: Border.all(
+                                color: const Color(0xFF4DB6AC).withOpacity(0.2),
+                                width: 1.5,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black12.withOpacity(0.1),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              children: [
+                                Text(
+                                  'NEXT ALLOCATED TOKEN',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 12,
+                                    color: const Color(0xFF4DB6AC),
+                                    letterSpacing: 2,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                _nextTokenNumber == null
+                                    ? const SizedBox(
+                                        height: 60,
+                                        width: 60,
+                                        child: CircularProgressIndicator(
+                                          color: Color(0xFF4DB6AC),
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : Text(
+                                        '#$_nextTokenNumber',
+                                        style: GoogleFonts.outfit(
+                                          fontSize: 64,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                          height: 1,
+                                          shadows: [
+                                            Shadow(
+                                              color: const Color(0xFF4DB6AC).withOpacity(0.5),
+                                              blurRadius: 15,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                const SizedBox(height: 16),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF4DB6AC).withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.sync_rounded, size: 12, color: Color(0xFF4DB6AC)),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        'LIVE UPDATE',
+                                        style: GoogleFonts.outfit(
+                                          fontSize: 10,
+                                          color: const Color(0xFF4DB6AC),
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 48),
+
+                          _buildInputLabel('Parent Full Name'),
+                          TextFormField(
+                            controller: _nameController,
+                            style: const TextStyle(color: Colors.white),
+                            textCapitalization: TextCapitalization.words,
+                            decoration: _inputDecoration(
+                                'Enter full name', Icons.person_outline_rounded),
+                            validator: (v) => v!.isEmpty ? 'Name is required' : null,
+                          ),
+                          const SizedBox(height: 28),
+                          _buildInputLabel('Parent Mobile Number'),
+                          TextFormField(
+                            controller: _mobileController,
+                            keyboardType: TextInputType.phone,
+                            maxLength: 10,
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            style: const TextStyle(color: Colors.white),
+                            decoration: _inputDecoration(
+                                '10-digit number', Icons.phone_iphone_rounded),
+                            validator: (v) =>
+                                v!.length != 10 ? 'Enter valid 10-digit number' : null,
+                          ),
+                          
+                          const SizedBox(height: 60),
+                          
+                          // Generate Button
+                          SizedBox(
+                            height: 60,
+                            child: ElevatedButton(
+                              onPressed: _isLoading ? null : _generateToken,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF00796B),
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                              ),
+                              child: _isLoading
+                                  ? const SizedBox(
+                                      height: 24,
+                                      width: 24,
+                                      child: CircularProgressIndicator(
+                                          color: Colors.white, strokeWidth: 2))
+                                  : Text(
+                                      'Generate Token',
+                                      style: GoogleFonts.outfit(
+                                          fontSize: 18, 
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 0.5,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                          const SizedBox(height: 40),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
-    ),
-  ],
-),
     );
   }
 

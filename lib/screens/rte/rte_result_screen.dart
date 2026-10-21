@@ -11,46 +11,96 @@ class RteResultScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Theme.of(context).colorScheme.primary.withOpacity(0.05),
-              Theme.of(context).colorScheme.surface,
+      body: Stack(
+        children: [
+          // 1. Dynamic Background Gradient
+          Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF004D40), // Deep Teal
+                  Color(0xFF00251A), // Darker Teal
+                  Color(0xFF0D2B2B), // Very Dark
+                ],
+              ),
+            ),
+          ),
+          
+          // 2. Decorative Background blobs
+          Positioned(
+            top: -100,
+            right: -100,
+            child: Container(
+              width: 320,
+              height: 320,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF00796B).withOpacity(0.12),
+              ),
+            ),
+          ),
+
+          // 3. Content
+          Column(
+            children: [
+              // Custom Header
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 56, 16, 12),
+                child: Row(
+                  children: [
+                    InkWell(
+                      onTap: () => Navigator.of(context).pop(),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          color: Colors.white70,
+                          size: 18,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Text(
+                      'Application Status',
+                      style: GoogleFonts.outfit(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 40),
+                  child: Column(
+                    children: [
+                      _buildStatusCard(context),
+                      const SizedBox(height: 32),
+                      ...data.sections.entries.map((section) {
+                        return _buildInfoSection(context, section.key, section.value);
+                      }),
+                      if (data.schools.isNotEmpty)
+                        _buildGridSection(context, "Selected Schools", data.schools, Icons.school_rounded),
+                      if (data.documents.isNotEmpty)
+                        _buildDocumentsSection(context, data.documents),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
-        ),
-        child: CustomScrollView(
-          slivers: [
-            SliverAppBar(
-              pinned: true,
-              title: Text(
-                'Application Status',
-                style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
-              ),
-              centerTitle: true,
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate([
-                  _buildStatusCard(context),
-                  const SizedBox(height: 16),
-                  ...data.sections.entries.map((section) {
-                    return _buildInfoSection(context, section.key, section.value);
-                  }),
-                  if (data.schools.isNotEmpty)
-                    _buildGridSection(context, "Selected Schools", data.schools, Icons.school_rounded),
-                  if (data.documents.isNotEmpty)
-                    _buildDocumentsSection(context, data.documents),
-                  const SizedBox(height: 40),
-                ]),
-              ),
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -61,104 +111,104 @@ class RteResultScreen extends StatelessWidget {
     final bool isRejected = msg.contains('નામંજૂ') || msg.contains('reject') || msg.contains('refused');
 
     final Color statusColor = isApproved
-        ? const Color(0xFF2E7D32)
+        ? const Color(0xFF69F0AE)
         : isRejected
-            ? const Color(0xFFC62828)
-            : const Color(0xFFE65100);
+            ? const Color(0xFFFF5252)
+            : const Color(0xFFFFAB40);
 
     final IconData statusIcon = isApproved
-        ? Icons.check_circle_rounded
+        ? Icons.verified_rounded
         : isRejected
-            ? Icons.cancel_rounded
-            : Icons.access_time_filled_rounded;
+            ? Icons.error_rounded
+            : Icons.hourglass_top_rounded;
 
-    return Card(
-      elevation: 4,
-      shadowColor: statusColor.withOpacity(0.25),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-        side: BorderSide(color: statusColor.withOpacity(0.35), width: 2),
-      ),
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              statusColor.withOpacity(0.08),
-              Theme.of(context).colorScheme.surface,
-            ],
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(36),
+        border: Border.all(
+          color: statusColor.withOpacity(0.2),
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: statusColor.withOpacity(0.05),
+            blurRadius: 30,
+            offset: const Offset(0, 15),
           ),
-        ),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.12),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(statusIcon, color: statusColor, size: 32),
-                ),
-                const SizedBox(width: 16),
-                Text(
-                  'અરજીની સ્થિતિ',
-                  style: GoogleFonts.notoSansGujarati(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: statusColor,
-                  ),
-                ),
-              ],
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: statusColor.withOpacity(0.12),
+              shape: BoxShape.circle,
             ),
-            const SizedBox(height: 20),
-            Text(
-              data.statusMessage,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.notoSansGujarati(
-                fontSize: 17,
-                height: 1.6,
-                fontWeight: FontWeight.w600,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
+            child: Icon(statusIcon, color: statusColor, size: 36),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'અરજીની સ્થિતિ',
+            style: GoogleFonts.notoSansGujarati(
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+              color: statusColor,
+              letterSpacing: 0.5,
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            data.statusMessage,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.notoSansGujarati(
+              fontSize: 17,
+              height: 1.6,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildInfoSection(BuildContext context, String title, Map<String, String> fields) {
-    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       margin: const EdgeInsets.only(bottom: 24),
       decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.5)),
+        color: Colors.white.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.08),
+          width: 1.5,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
             child: Text(
               title,
-              style: GoogleFonts.notoSansGujarati(fontSize: 18, fontWeight: FontWeight.bold, color: colorScheme.primary),
+              style: GoogleFonts.notoSansGujarati(
+                fontSize: 18, 
+                fontWeight: FontWeight.w900, 
+                color: const Color(0xFF4DB6AC),
+                letterSpacing: 0.5,
+              ),
             ),
           ),
-          const Divider(height: 1),
+          const Divider(height: 1, color: Colors.white10),
           Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(24),
             child: Column(
               children: fields.entries.map((e) {
                 return Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.only(bottom: 18),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -166,16 +216,24 @@ class RteResultScreen extends StatelessWidget {
                         flex: 2,
                         child: Text(
                           e.key,
-                          style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant, fontWeight: FontWeight.w500),
+                          style: GoogleFonts.notoSansGujarati(
+                            fontSize: 13, 
+                            color: Colors.white.withOpacity(0.4), 
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 16),
                       Expanded(
                         flex: 3,
                         child: Text(
                           e.value,
-                          textAlign: TextAlign.end,
-                          style: GoogleFonts.notoSansGujarati(fontSize: 14, fontWeight: FontWeight.bold),
+                          textAlign: TextAlign.right,
+                          style: GoogleFonts.notoSansGujarati(
+                            fontSize: 14, 
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ],
@@ -190,36 +248,44 @@ class RteResultScreen extends StatelessWidget {
   }
 
   Widget _buildGridSection(BuildContext context, String title, List<List<String>> rows, IconData icon) {
-    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       margin: const EdgeInsets.only(bottom: 24),
       decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.5)),
+        color: Colors.white.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(24),
             child: Row(
               children: [
-                Icon(icon, color: colorScheme.primary, size: 22),
+                Icon(icon, color: const Color(0xFF4DB6AC), size: 24),
                 const SizedBox(width: 12),
-                Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                Text(
+                  title, 
+                  style: GoogleFonts.outfit(
+                    fontSize: 18, 
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  )
+                ),
               ],
             ),
           ),
-          const Divider(height: 1),
+          const Divider(height: 1, color: Colors.white10),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.only(bottom: 8),
             child: DataTable(
               showCheckboxColumn: false,
+              headingTextStyle: GoogleFonts.outfit(color: Colors.white.withOpacity(0.4), fontWeight: FontWeight.bold),
               columns: rows[0].map((h) => DataColumn(label: Text(h))).toList(),
               rows: rows.skip(1).map((row) {
                 return DataRow(
-                  cells: row.map((c) => DataCell(Text(c, style: GoogleFonts.notoSansGujarati(fontSize: 11)))).toList(),
+                  cells: row.map((c) => DataCell(Text(c, style: GoogleFonts.notoSansGujarati(fontSize: 11, color: Colors.white70)))).toList(),
                 );
               }).toList(),
             ),
@@ -231,30 +297,36 @@ class RteResultScreen extends StatelessWidget {
 
   Widget _buildDocumentsSection(BuildContext context, List<List<String>> rows) {
     if (rows.isEmpty) return const SizedBox();
-    final colorScheme = Theme.of(context).colorScheme;
     final dataRows = rows.skip(1).toList();
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 24),
+      margin: const EdgeInsets.only(bottom: 32),
       decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.5)),
+        color: Colors.white.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(32),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(24),
             child: Row(
               children: [
-                Icon(Icons.file_present_rounded, color: colorScheme.primary, size: 22),
+                const Icon(Icons.file_present_rounded, color: Color(0xFF4DB6AC), size: 24),
                 const SizedBox(width: 12),
-                const Text('Uploaded Documents', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                Text(
+                  'Uploaded Documents', 
+                  style: GoogleFonts.outfit(
+                    fontSize: 18, 
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  )
+                ),
               ],
             ),
           ),
-          const Divider(height: 1),
+          const Divider(height: 1, color: Colors.white10),
           ...dataRows.map((row) {
             final category = row.length > 1 ? row[1] : '';
             final size     = row.length > 2 ? row[2] : '';
@@ -270,29 +342,52 @@ class RteResultScreen extends StatelessWidget {
             if (category.toLowerCase().contains('declaration')) docIcon = Icons.verified_rounded;
 
             return Container(
-              decoration: BoxDecoration(
-                border: Border(bottom: BorderSide(color: colorScheme.outlineVariant.withOpacity(0.3))),
+              decoration: const BoxDecoration(
+                border: Border(bottom: BorderSide(color: Colors.white10)),
               ),
               child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 leading: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: colorScheme.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-                  child: Icon(docIcon, color: colorScheme.primary, size: 22),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4DB6AC).withOpacity(0.1), 
+                    borderRadius: BorderRadius.circular(16)
+                  ),
+                  child: Icon(docIcon, color: const Color(0xFF4DB6AC), size: 22),
                 ),
-                title: Text(category, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                subtitle: Text(size, style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                title: Text(
+                  category, 
+                  style: GoogleFonts.notoSansGujarati(
+                    fontWeight: FontWeight.bold, 
+                    fontSize: 14,
+                    color: Colors.white,
+                  )
+                ),
+                subtitle: Text(
+                  size, 
+                  style: GoogleFonts.outfit(
+                    fontSize: 12, 
+                    color: Colors.white.withOpacity(0.4),
+                  )
+                ),
                 trailing: url.isNotEmpty
-                    ? ElevatedButton.icon(
-                        onPressed: () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
-                        icon: const Icon(Icons.open_in_new_rounded, size: 14),
-                        label: const Text('View', style: TextStyle(fontSize: 12)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: colorScheme.primary,
-                          foregroundColor: colorScheme.onPrimary,
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          elevation: 0,
+                    ? InkWell(
+                        onTap: () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF00796B),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            'View',
+                            style: GoogleFonts.outfit(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
                       )
                     : null,
