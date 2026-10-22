@@ -9,6 +9,8 @@ import '../screens/parent/child_profile_screen.dart';
 import '../screens/parent/document_upload_screen.dart';
 import '../screens/parent/application_status_screen.dart';
 import '../screens/parent/consent_screen.dart';
+import '../screens/parent/delete_data_screen.dart';
+import '../screens/parent/deletion_pending_screen.dart';
 import '../screens/office/office_dashboard_screen.dart';
 import '../screens/office/new_token_screen.dart';
 import '../screens/office/scan_qr_screen.dart';
@@ -21,6 +23,7 @@ import '../screens/rte/rte_status_screen.dart';
 import '../screens/maintenance_screen.dart';
 import '../models/token_model.dart';
 import '../services/consent_service.dart';
+import '../services/deletion_service.dart';
 
 class AppRouter {
   static final router = GoRouter(
@@ -61,10 +64,30 @@ class AppRouter {
           child: const ConsentScreen(),
         ),
       ),
+      // Self-service data deletion (DPDP). The confirmation screen re-verifies
+      // identity and schedules the request; the pending screen is the
+      // "Deletion scheduled for <date>. Tap to cancel" state and blocks every
+      // other parent data route via the guard below.
+      GoRoute(
+        path: '/parent/delete-data',
+        name: 'parent-delete-data',
+        redirect: (context, state) => _consentGuard(state),
+        pageBuilder: (context, state) => _buildPage(
+          state: state,
+          child: const DeleteDataScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/parent/deletion-pending',
+        name: 'parent-deletion-pending',
+        pageBuilder: (context, state) => _buildPage(
+          state: state,
+          child: const DeletionPendingScreen(),
+        ),
+      ),
       GoRoute(
         path: '/parent/dashboard',
         name: 'parent-dashboard',
-        // Consent guard: redirect to consent if no valid record exists.
         redirect: (context, state) => _consentGuard(state),
         pageBuilder: (context, state) => _buildPage(
           state: state,
@@ -245,14 +268,15 @@ class AppRouter {
     );
   }
 
-  /// Consent guard used on every parent data route.
+  /// Guard used on every parent data route.
   ///
-  /// Returns `/parent/consent` if the current subject has no valid consent
-  /// record for [ConsentService.kConsentVersion]. Returns null (allow) otherwise.
+  /// Redirects, in order:
+  ///  1. to `/parent/deletion-pending` while a deletion request is pending
+  ///     (the parent must not browse data scheduled for deletion), or
+  ///  2. to `/parent/consent` when no valid consent record exists.
   ///
-  /// Deep links and back-button attempts to skip consent are handled here;
-  /// the ConsentScreen widget also sets PopScope(canPop:false) for defence
-  /// in depth.
+  /// Returns null (allow) otherwise. Deep links and back-button attempts to
+  /// skip these states are handled here; the widgets add PopScope where needed.
   static Future<String?> _consentGuard(GoRouterState state) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -261,6 +285,10 @@ class AppRouter {
         // No session at all — let the destination handle it (dashboard shows its own error)
         return null;
       }
+
+      final deletionPending = await DeletionService().hasPendingDeletion(tokenId);
+      if (deletionPending) return '/parent/deletion-pending';
+
       final hasConsent = await ConsentService().hasValidConsent(tokenId);
       if (!hasConsent) return '/parent/consent';
       return null; // allow

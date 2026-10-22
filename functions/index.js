@@ -87,6 +87,7 @@ exports.syncStorageToDrive = functions
         body: fs.createReadStream(tempFilePath),
       };
 
+      let driveFileId = existingFile;
       if (existingFile) {
         await drive.files.update({
           fileId: existingFile,
@@ -95,12 +96,36 @@ exports.syncStorageToDrive = functions
         });
         console.log(`Sync Success (Update): ${fileName}`);
       } else {
-        await drive.files.create({
+        const created = await drive.files.create({
           requestBody: { name: fileName, parents: [tokenFolderId] },
           media: media,
           supportsAllDrives: true,
         });
+        driveFileId = created.data.id;
         console.log(`Sync Success (Create): ${fileName}`);
+      }
+
+      // Persist the Drive fileId so the scheduled hard-delete worker
+      // (functions/deleteScheduled.js) can remove the mirrored copy later.
+      // GAP: files mirrored before this change have no mapping row and cannot
+      // be deleted automatically — see CREDENTIALS.md / task report.
+      try {
+        await admin
+          .firestore()
+          .collection("drive_mirror")
+          .doc(`${tokenId}_${fileName}`)
+          .set(
+            {
+              tokenId: tokenId,
+              fileName: fileName,
+              driveFileId: driveFileId,
+              mimeType: contentType || null,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+      } catch (mapError) {
+        console.error("DRIVE MAP FAILED:", mapError.message);
       }
 
       fs.unlinkSync(tempFilePath);
@@ -168,3 +193,8 @@ async function findFileInFolder(drive, fileName, folderId) {
   }
   return null;
 }
+
+// ── Scheduled hard-delete worker (DRAFT — do NOT deploy without review) ─────
+// Processes deletion_requests whose executeAfter has passed, removes all
+// Firestore/Storage/Drive copies, and writes a non-personal tombstone.
+exports.deleteScheduled = require("./deleteScheduled").deleteScheduled;

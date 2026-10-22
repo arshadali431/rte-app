@@ -269,13 +269,37 @@ class FirestoreService {
           .get(),
     ]);
 
+    // Pending-deletion tokens are hidden from office counters. They are a
+    // small set, so subtract them from the aggregate counts above instead of
+    // adding composite indexes to every count query.
+    final pendingSnapshot = await _db
+        .collection(AppConstants.kTokensCollection)
+        .where('deletionPending', isEqualTo: true)
+        .get();
+    final pendingDocs = pendingSnapshot.docs;
+    final pendingByStatus = <String, int>{};
+    for (final doc in pendingDocs) {
+      final status = doc.data()['govStatus'];
+      if (status is String) {
+        pendingByStatus[status] = (pendingByStatus[status] ?? 0) + 1;
+      }
+    }
+
+    int visibleCount(int? raw, [String? status]) {
+      final hidden = status == null
+          ? pendingDocs.length
+          : (pendingByStatus[status] ?? 0);
+      final result = (raw ?? 0) - hidden;
+      return result < 0 ? 0 : result;
+    }
+
     _cachedCounts = {
-      'total': results[0].count ?? 0,
-      'approved': results[1].count ?? 0,
-      'submitted': results[2].count ?? 0,
-      'pending': results[3].count ?? 0,
-      'correction': results[4].count ?? 0,
-      'cancelled': results[5].count ?? 0,
+      'total': visibleCount(results[0].count),
+      'approved': visibleCount(results[1].count, 'APPROVED'),
+      'submitted': visibleCount(results[2].count, 'SUBMITTED'),
+      'pending': visibleCount(results[3].count, 'PENDING'),
+      'correction': visibleCount(results[4].count, 'CORRECTION'),
+      'cancelled': visibleCount(results[5].count, 'CANCELLED'),
     };
     _countsCachedAt = DateTime.now();
     return _cachedCounts!;
@@ -360,8 +384,10 @@ class FirestoreService {
         .limit(limit)
         .get();
 
+    // Office lists hide tokens with a pending self-service deletion request.
     _cachedRecentTokens = snapshot.docs
         .map((doc) => TokenModel.fromFirestore(doc.data(), doc.id))
+        .where((token) => !token.deletionPending)
         .toList();
     _recentCachedAt = DateTime.now();
     return _cachedRecentTokens!;
@@ -375,6 +401,8 @@ class FirestoreService {
         .get();
     return query.docs
         .map((doc) => TokenModel.fromFirestore(doc.data(), doc.id))
+        // Pending-deletion tokens are hidden from office search results.
+        .where((token) => !token.deletionPending)
         .toList();
   }
 
@@ -387,10 +415,14 @@ class FirestoreService {
         .get();
     return query.docs
         .map((doc) => TokenModel.fromFirestore(doc.data(), doc.id))
+        .where((token) => !token.deletionPending)
         .toList();
   }
 
-  /// Search by Token Number — direct document ID lookup (fastest possible)
+  /// Search by Token Number — direct document ID lookup (fastest possible).
+  /// Pending-deletion tokens are intentionally returned here so the office
+  /// token detail can show the neutral "Deletion requested" state instead of
+  /// leaking personal data.
   Future<TokenModel?> searchByTokenNumber(int tokenNumber) async {
     final doc = await _db
         .collection(AppConstants.kTokensCollection)
@@ -409,6 +441,7 @@ class FirestoreService {
         .get();
     return query.docs
         .map((doc) => TokenModel.fromFirestore(doc.data(), doc.id))
+        .where((token) => !token.deletionPending)
         .toList();
   }
 
@@ -432,6 +465,8 @@ class FirestoreService {
       if (snap.docs.isEmpty) break;
       final tokens = snap.docs
           .map((d) => TokenModel.fromFirestore(d.data(), d.id))
+          // Pending-deletion tokens are not synced with the government portal.
+          .where((token) => !token.deletionPending)
           .toList();
       await onChunk(tokens);
       total += tokens.length;

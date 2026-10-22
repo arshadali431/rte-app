@@ -8,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/consent_service.dart';
 import '../../widgets/no_internet_banner.dart';
+import '../../widgets/privacy_policy_link.dart';
 
 // ---------------------------------------------------------------------------
 // Language constants
@@ -118,6 +119,18 @@ extension _LangExt on _Lang {
       case _Lang.en: return 'Holding...';
       case _Lang.hi: return 'दबाए रखें...';
       case _Lang.gu: return 'દબાવી રાખો...';
+    }
+  }
+
+  /// DPDP self-service deletion pointer shown in the footer.
+  String get deletionNote {
+    switch (this) {
+      case _Lang.en:
+        return 'You can delete your data any time from Profile → Delete my data.';
+      case _Lang.hi:
+        return 'आप किसी भी समय प्रोफ़ाइल → मेरा डेटा हटाएँ से अपना डेटा हटा सकते हैं।';
+      case _Lang.gu:
+        return 'તમે કોઈ પણ સમયે પ્રોફાઇલ → મારો ડેટા ડિલીટ કરો માંથી તમારો ડેટા ડિલીટ કરી શકો છો.';
     }
   }
 }
@@ -909,6 +922,21 @@ class _ConsentScreenState extends State<ConsentScreen>
             style: GoogleFonts.outfit(
               color: Colors.white60,
               fontSize: 11.5,
+            ),
+          ),
+          const SizedBox(height: 4),
+          PrivacyPolicyLink(
+            language: _lang.locale,
+            color: Colors.white38,
+            dense: true,
+          ),
+          Text(
+            _lang.deletionNote,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.outfit(
+              color: Colors.white38,
+              fontSize: 10.5,
+              height: 1.4,
             ),
           ),
         ],

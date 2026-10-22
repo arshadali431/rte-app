@@ -1,30 +1,27 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:rte_status_checker/main.dart';
+import 'package:rte_status_checker/core/app_links.dart';
+import 'package:rte_status_checker/core/external_links.dart';
+import 'package:rte_status_checker/widgets/privacy_policy_link.dart';
 
+/// Basic smoke coverage for shared links. The full privacy/deletion suite lives
+/// in test/privacy_and_deletion_test.dart.
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  test('app links are configured', () {
+    expect(isConfiguredUrl(kPrivacyPolicyUrl), isTrue);
+  });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+  testWidgets('privacy policy button is tappable', (tester) async {
+    final previousOpener = externalUrlOpener;
+    externalUrlOpener = (uri) async => true;
+    addTearDown(() => externalUrlOpener = previousOpener);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: PrivacyPolicyLink())),
+    );
+    expect(find.byType(TextButton), findsOneWidget);
+    await tester.tap(find.byType(TextButton));
     await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
   });
 }
