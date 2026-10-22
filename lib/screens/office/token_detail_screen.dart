@@ -49,7 +49,12 @@ class _TokenDetailScreenState extends State<TokenDetailScreen> {
     super.initState();
     _token = widget.token;
     _startTokenListener();
-    _loadData();
+    if (_token.deletionPending) {
+      // Pending self-service deletion: never load or show personal data.
+      _isLoading = false;
+    } else {
+      _loadData();
+    }
   }
 
   void _startTokenListener() {
@@ -58,11 +63,21 @@ class _TokenDetailScreenState extends State<TokenDetailScreen> {
         .doc(_token.id)
         .snapshots(includeMetadataChanges: true)
         .listen((snapshot) {
-      if (snapshot.exists && snapshot.data() != null && mounted) {
-        // If snapshot is from server and different from current, update
-        setState(() {
-          _token = TokenModel.fromFirestore(snapshot.data()!, snapshot.id);
-        });
+      if (!snapshot.exists || snapshot.data() == null || !mounted) return;
+      final fresh = TokenModel.fromFirestore(snapshot.data()!, snapshot.id);
+      final wasPending = _token.deletionPending;
+      setState(() {
+        _token = fresh;
+        if (fresh.deletionPending) {
+          // Block document viewing while a deletion request is pending.
+          _children = [];
+          _documents = [];
+          _isLoading = false;
+        }
+      });
+      if (wasPending && !fresh.deletionPending) {
+        // Parent cancelled the deletion elsewhere; load data again.
+        _loadData();
       }
     });
   }
@@ -74,6 +89,11 @@ class _TokenDetailScreenState extends State<TokenDetailScreen> {
   }
 
   Future<void> _loadData({bool forceServer = false}) async {
+    if (_token.deletionPending) {
+      // Never load personal data while a self-service deletion is pending.
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
     if (forceServer) setState(() => _isLoading = true);
     try {
       if (forceServer) {
@@ -706,9 +726,163 @@ class _TokenDetailScreenState extends State<TokenDetailScreen> {
     );
   }
 
+  /// Neutral, non-personal state for tokens whose parent requested deletion.
+  /// No name, phone, Aadhaar, documents or application data are shown here.
+  Widget _buildDeletionPendingView(BuildContext context) {
+    const accent = Color(0xFF4DB6AC);
+    return Scaffold(
+      backgroundColor: const Color(0xFF081F20),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  _buildGlassButton(
+                    icon: Icons.arrow_back_rounded,
+                    onTap: () {
+                      if (context.canPop()) {
+                        context.pop();
+                      } else {
+                        context.go('/office/dashboard');
+                      }
+                    },
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      'Token Details',
+                      style: GoogleFonts.outfit(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              Expanded(
+                child: Center(
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.delete_sweep_outlined,
+                          color: Color(0xFFFF8A80),
+                          size: 52,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Deletion requested',
+                          style: GoogleFonts.outfit(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'The parent/guardian requested deletion of this data. '
+                          'Personal details and documents are hidden while the '
+                          'request is pending.',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.outfit(
+                            color: Colors.white70,
+                            fontSize: 13.5,
+                            height: 1.5,
+                          ),
+                        ),
+                        if (_token.applicationId != null) ...[
+                          const SizedBox(height: 14),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFCC80).withValues(alpha: 0.10),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: const Color(0xFFFFCC80).withValues(alpha: 0.35),
+                              ),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(
+                                  Icons.gavel_rounded,
+                                  color: Color(0xFFFFCC80),
+                                  size: 17,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'This application was already submitted to the '
+                                    'official RTE portal. The government copy cannot '
+                                    'be deleted by the Trust.',
+                                    style: GoogleFonts.outfit(
+                                      color: const Color(0xFFFFCC80),
+                                      fontSize: 12.5,
+                                      height: 1.45,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 20),
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            final fresh = await FirestoreService().getTokenById(
+                              _token.id,
+                              forceServer: true,
+                            );
+                            if (fresh != null && mounted) {
+                              setState(() => _token = fresh);
+                              if (!fresh.deletionPending) _loadData();
+                            }
+                          },
+                          icon: const Icon(Icons.refresh_rounded, size: 18),
+                          label: Text(
+                            'Refresh status',
+                            style: GoogleFonts.outfit(fontSize: 13),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: accent,
+                            side: BorderSide(color: accent.withValues(alpha: 0.5)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     const accent = Color(0xFF4DB6AC);
+
+    if (_token.deletionPending) {
+      // Hard block: no personal data, documents or actions for pending
+      // deletion requests.
+      return _buildDeletionPendingView(context);
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFF081F20),

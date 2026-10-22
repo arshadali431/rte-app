@@ -87,6 +87,8 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
         );
         _allTokens = snapshot.docs
             .map((d) => TokenModel.fromFirestore(d.data(), d.id))
+            // Pending-deletion tokens are hidden from office lists.
+            .where((token) => !token.deletionPending)
             .toList();
         _totalCount = _allTokens.length;
         _setClientPage(1);
@@ -126,6 +128,8 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
       );
       final newTokens = snapshot.docs
           .map((d) => TokenModel.fromFirestore(d.data(), d.id))
+          // Pending-deletion tokens are hidden from office lists.
+          .where((token) => !token.deletionPending)
           .toList();
 
       if (!mounted) return;
@@ -133,7 +137,8 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
         _tokens = newTokens;
         _currentPage = page;
         _isLoading = false;
-        if (newTokens.length == _pageSize && _pageHistory.length <= page) {
+        if (snapshot.docs.length == _pageSize &&
+            _pageHistory.length <= page) {
           _pageHistory.add(snapshot.docs.last);
         }
       });
