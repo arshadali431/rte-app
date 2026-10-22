@@ -37,10 +37,10 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
   String _errorMessage = '';
   int _totalCount = 0;
   int _currentPage = 1;
-   StreamSubscription? _metaSubscription;
+  StreamSubscription? _metaSubscription;
 
   bool get _isAllGenerated => widget.category == 'All Generated';
-  int get _totalPages => (_totalCount / _pageSize).ceil().clamp(1, 9999);
+  int get _totalPages => (_totalCount / _pageSize).ceil().clamp(1, 9999).toInt();
 
   @override
   void initState() {
@@ -93,6 +93,7 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
       }
     } catch (e) {
       debugPrint('AnalysisDetails error: $e');
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
         _hasError = true;
@@ -105,7 +106,7 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
   void _setClientPage(int page) {
     if (!mounted) return;
     final start = (page - 1) * _pageSize;
-    final end = (start + _pageSize).clamp(0, _allTokens.length);
+    final end = (start + _pageSize).clamp(0, _allTokens.length).toInt();
     setState(() {
       _tokens = _allTokens.sublist(start, end);
       _currentPage = page;
@@ -115,7 +116,8 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
 
   // ── Server-side page fetch (only for All Generated) ──────────────────
   Future<void> _fetchServerPage(int page) async {
-    setState(() => _isLoading = true);
+    if (!mounted) return;
+    setState(() { _isLoading = true; _hasError = false; });
     try {
       final snapshot = await _firestoreService.getTokensPaginated(
         limit: _pageSize,
@@ -126,6 +128,7 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
           .map((d) => TokenModel.fromFirestore(d.data(), d.id))
           .toList();
 
+      if (!mounted) return;
       setState(() {
         _tokens = newTokens;
         _currentPage = page;
@@ -136,6 +139,7 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
       });
     } catch (e) {
       debugPrint('Server page error: $e');
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
         _hasError = true;
@@ -155,165 +159,231 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Stack(
-        children: [
-          // 1. Dynamic Background Gradient
-          Container(
-            width: double.infinity,
-            height: double.infinity,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFF004D40), // Deep Teal
-                  Color(0xFF00251A), // Darker Teal
-                  Color(0xFF0D2B2B), // Very Dark
-                ],
-              ),
-            ),
-          ),
-          
-          // 2. Decorative Background blobs
-          Positioned(
-            bottom: -80,
-            right: -80,
-            child: Container(
-              width: 300,
-              height: 300,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFF00796B).withOpacity(0.08),
-              ),
-            ),
-          ),
+    const accent = Color(0xFF4DB6AC);
 
-          // 3. Content
-          RefreshIndicator(
-            onRefresh: () => _loadInitialData(),
-            color: const Color(0xFF4DB6AC),
-            backgroundColor: const Color(0xFF0D2B2B),
-            child: Column(
-              children: [
-              // Custom Navigation Header
-              Container(
-                padding: const EdgeInsets.fromLTRB(20, 50, 16, 12),
+    return Scaffold(
+      backgroundColor: const Color(0xFF082923),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF103D35),
+              Color(0xFF092C26),
+              Color(0xFF081F20),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Compact page header
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                 child: Row(
                   children: [
-                    InkWell(
-                      onTap: () => Navigator.pop(context),
+                    Material(
+                      color: Colors.white.withOpacity(0.06),
                       borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.05),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.arrow_back_ios_new_rounded,
-                          color: Colors.white70,
-                          size: 18,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () => Navigator.pop(context),
+                        child: const SizedBox(
+                          width: 42,
+                          height: 42,
+                          child: Icon(
+                            Icons.arrow_back_rounded,
+                            color: Colors.white,
+                            size: 21,
+                          ),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         '${widget.category} Applications',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.outfit(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
                           color: Colors.white,
                         ),
                       ),
                     ),
+                    const SizedBox(width: 8),
                     _buildTotalCounter(),
                   ],
                 ),
               ),
 
+              // Results table and pagination
               Expanded(
                 child: Container(
-                  margin: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+                  margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                   clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.06),
-                    borderRadius: BorderRadius.circular(32),
+                    color: const Color(0xFF102F2B).withOpacity(0.78),
+                    borderRadius: BorderRadius.circular(18),
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.05),
-                      width: 1.5,
+                      color: Colors.white.withOpacity(0.08),
+                      width: 1,
                     ),
                   ),
-                  child: _isLoading 
-                    ? const Center(child: CircularProgressIndicator(color: Color(0xFF4DB6AC)))
-                    : _tokens.isEmpty
-                      ? _buildEmptyState()
-                      : Column(
-                          children: [
-                            Expanded(
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: _isLoading
+                            ? const Center(
+                          child: CircularProgressIndicator(
+                            color: accent,
+                            strokeWidth: 2.5,
+                          ),
+                        )
+                            : RefreshIndicator(
+                          onRefresh: _loadInitialData,
+                          color: accent,
+                          backgroundColor: const Color(0xFF102F2B),
+                          child: _hasError
+                              ? ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            children: [
+                              SizedBox(
+                                height: 300,
+                                child: _buildErrorState(),
+                              ),
+                            ],
+                          )
+                              : _tokens.isEmpty
+                              ? ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            children: [
+                              SizedBox(
+                                height: 300,
+                                child: _buildEmptyState(),
+                              ),
+                            ],
+                          )
+                              : SingleChildScrollView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              physics: const BouncingScrollPhysics(),
                               child: Theme(
                                 data: Theme.of(context).copyWith(
-                                  dividerColor: Colors.white.withOpacity(0.03),
+                                  dividerColor: Colors.white.withOpacity(0.07),
                                 ),
-                                child: SingleChildScrollView(
-                                  scrollDirection: Axis.vertical,
-                                  physics: const BouncingScrollPhysics(),
-                                  child: SingleChildScrollView(
-                                    scrollDirection: Axis.horizontal,
-                                    physics: const BouncingScrollPhysics(),
-                                    child: DataTable(
-                                      showCheckboxColumn: false,
-                                      horizontalMargin: 24,
-                                      columnSpacing: 32,
-                                      headingRowColor: MaterialStateProperty.all(Colors.white.withOpacity(0.04)),
-                                      headingRowHeight: 56,
-                                      headingTextStyle: GoogleFonts.outfit(
-                                        color: const Color(0xFF4DB6AC),
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
-                                        letterSpacing: 0.5,
-                                      ),
-                                      dataTextStyle: GoogleFonts.outfit(
-                                        color: Colors.white.withOpacity(0.9),
-                                        fontSize: 13,
-                                      ),
-                                      columns: const [
-                                        DataColumn(label: Text('TOKEN')),
-                                        DataColumn(label: Text('PARENT NAME')),
-                                        DataColumn(label: Text('CHILD NAME')),
-                                        DataColumn(label: Text('APPLICATION ID')),
-                                        DataColumn(label: Text('DOB')),
-                                        DataColumn(label: Text('GOV MOBILE')),
-                                        DataColumn(label: Text('STATUS')),
-                                        DataColumn(label: Text('SYNC DATE')),
-                                      ],
-                                      rows: _tokens.map((token) => _buildDataRow(token)).toList(),
-                                    ),
+                                child: DataTable(
+                                  showCheckboxColumn: false,
+                                  horizontalMargin: 18,
+                                  columnSpacing: 26,
+                                  headingRowHeight: 48,
+                                  dataRowMinHeight: 54,
+                                  dataRowMaxHeight: 72,
+                                  headingRowColor: WidgetStatePropertyAll(
+                                    Colors.white.withOpacity(0.035),
                                   ),
+                                  headingTextStyle: GoogleFonts.outfit(
+                                    color: accent,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12,
+                                    letterSpacing: 0.4,
+                                  ),
+                                  dataTextStyle: GoogleFonts.outfit(
+                                    color: Colors.white.withOpacity(0.88),
+                                    fontSize: 13,
+                                  ),
+                                  columns: const [
+                                    DataColumn(label: Text('TOKEN')),
+                                    DataColumn(label: Text('PARENT NAME')),
+                                    DataColumn(label: Text('CHILD NAME')),
+                                    DataColumn(label: Text('APPLICATION ID')),
+                                    DataColumn(label: Text('DOB')),
+                                    DataColumn(label: Text('GOV MOBILE')),
+                                    DataColumn(label: Text('STATUS')),
+                                    DataColumn(label: Text('SYNC DATE')),
+                                  ],
+                                  rows: _tokens
+                                      .map((token) => _buildDataRow(token))
+                                      .toList(),
                                 ),
                               ),
                             ),
-                            _buildProfessionalPagination(),
-                          ],
+                          ),
                         ),
+                      ),
+                      if (!_isLoading && !_hasError && _tokens.isNotEmpty)
+                        _buildProfessionalPagination(),
+                    ],
+                  ),
                 ),
               ),
             ],
           ),
         ),
-      ],
-    ),
-  );
-}
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.cloud_off_rounded,
+              size: 42,
+              color: Colors.white.withOpacity(0.35),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Could not load applications',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.outfit(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Check your connection and try again.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.outfit(
+                color: Colors.white.withOpacity(0.58),
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: _loadInitialData,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('Try again'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF4DB6AC),
+                side: BorderSide(color: const Color(0xFF4DB6AC).withOpacity(0.45)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _buildTotalCounter() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
       decoration: BoxDecoration(
-        color: const Color(0xFF4DB6AC).withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF4DB6AC).withOpacity(0.2)),
+        color: const Color(0xFF4DB6AC).withOpacity(0.10),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFF4DB6AC).withOpacity(0.22)),
       ),
       child: Text(
         '$_totalCount Total',
@@ -336,7 +406,7 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.04),
         border: Border(top: BorderSide(color: Colors.white.withOpacity(0.05))),
@@ -385,10 +455,12 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
     List<Widget> widgets = [];
     int start = _currentPage - 1;
     if (start < 1) start = 1;
-    
+
     int end = start + 2;
     if (end > _totalPages) end = _totalPages;
-    if (end - start < 2 && start > 1) start = (end - 2).clamp(1, _totalPages);
+    if (end - start < 2 && start > 1) {
+      start = (end - 2).clamp(1, _totalPages).toInt();
+    }
 
     // Always show Page 1 if not in range
     if (start > 1) {
@@ -410,25 +482,20 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
   }
 
   Widget _buildNumButton(int page, bool isSelected) {
-    bool canJump = page <= _pageHistory.length; 
-    
+    final bool canJump = _isClientSide
+        ? page <= _totalPages
+        : page <= _pageHistory.length;
+
     return GestureDetector(
       onTap: (canJump && !isSelected) ? () => _fetchPage(page) : null,
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 6),
-        width: 38,
-        height: 38,
+        width: 34,
+        height: 34,
         decoration: BoxDecoration(
           color: isSelected ? const Color(0xFF00796B) : Colors.white.withOpacity(0.05),
           shape: BoxShape.circle,
           border: isSelected ? null : Border.all(color: Colors.white.withOpacity(0.01)),
-          boxShadow: isSelected ? [
-            BoxShadow(
-              color: const Color(0xFF00796B).withOpacity(0.3),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            )
-          ] : null,
         ),
         child: Center(
           child: Text(
@@ -475,18 +542,18 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
   DataRow _buildDataRow(TokenModel token) {
     final bool hasHistory = token.applicationHistory.isNotEmpty;
     final bool isNoStatus = token.govStatusMessage?.contains('No status information found') ?? false;
-    
-    final Color statusColor = isNoStatus 
-      ? Colors.white24
-      : token.govStatus == 'APPROVED' 
-        ? const Color(0xFF69F0AE) 
+
+    final Color statusColor = isNoStatus
+        ? Colors.white24
+        : token.govStatus == 'APPROVED'
+        ? const Color(0xFF69F0AE)
         : token.govStatus == 'SUBMITTED'
-          ? const Color(0xFF90CAF9)   // light blue
-          : token.govStatus == 'CANCELLED' 
-            ? const Color(0xFFFF5252) 
-            : token.govStatus == 'PENDING'
-              ? const Color(0xFFFFD54F)
-              : Colors.white38;
+        ? const Color(0xFF90CAF9)   // light blue
+        : token.govStatus == 'CANCELLED'
+        ? const Color(0xFFFF5252)
+        : token.govStatus == 'PENDING'
+        ? const Color(0xFFFFD54F)
+        : Colors.white38;
 
     return DataRow(
       onSelectChanged: (_) => context.push('/office/token-detail', extra: token),
@@ -497,24 +564,24 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
         DataCell(
           token.govChildName != null
               ? Text(
-                  token.govChildName!,
-                  style: GoogleFonts.notoSansGujarati(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white.withOpacity(0.9),
-                  ),
-                )
+            token.govChildName!,
+            style: GoogleFonts.notoSansGujarati(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.white.withOpacity(0.9),
+            ),
+          )
               : Text(
-                  '—',
-                  style: TextStyle(color: Colors.white.withOpacity(0.25), fontSize: 13),
-                ),
+            '—',
+            style: TextStyle(color: Colors.white.withOpacity(0.25), fontSize: 13),
+          ),
         ),
         DataCell(Text(token.applicationId ?? 'N/A', style: TextStyle(color: Colors.white.withOpacity(0.5)))),
         DataCell(Text(token.childDob ?? 'N/A', style: TextStyle(color: Colors.white.withOpacity(0.5)))),
         DataCell(Text(token.govParentMobile ?? '—', style: TextStyle(color: Colors.white.withOpacity(0.5)))),
         DataCell(
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
               color: (hasHistory ? const Color(0xFF64B5F6) : statusColor).withOpacity(0.12),
               borderRadius: BorderRadius.circular(10),

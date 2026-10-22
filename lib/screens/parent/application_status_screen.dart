@@ -1,11 +1,8 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:dio/dio.dart';
-import 'package:html/parser.dart' as parser;
 import 'package:url_launcher/url_launcher.dart';
 import '../../services/firestore_service.dart';
 import '../../services/rte_service.dart';
@@ -36,8 +33,7 @@ class ApplicationStatusScreen extends StatefulWidget {
   State<ApplicationStatusScreen> createState() => _ApplicationStatusScreenState();
 }
 
-class _ApplicationStatusScreenState extends State<ApplicationStatusScreen>
-    with SingleTickerProviderStateMixin {
+class _ApplicationStatusScreenState extends State<ApplicationStatusScreen> {
   TokenModel? _token;
   bool _isLoading = true;
   String? _error;
@@ -47,23 +43,13 @@ class _ApplicationStatusScreenState extends State<ApplicationStatusScreen>
   bool _rteLoading = false;
   String? _rteError;
 
-  // New Property for Pulsing App ID Card
+  // Show the application ID notice once when an ID is first received.
   bool _showAppIdCard = false;
-  late AnimationController _pulseController;
-  late Animation<double> _pulseAnimation;
 
   @override
   void initState() {
     super.initState();
     HttpOverrides.global = _AppHttpOverrides();
-    
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
-    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.1).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
 
     _loadData().then((_) async {
       if (_showAppIdCard && _token != null) {
@@ -75,11 +61,11 @@ class _ApplicationStatusScreenState extends State<ApplicationStatusScreen>
 
   @override
   void dispose() {
-    _pulseController.dispose();
     super.dispose();
   }
 
   Future<void> _loadData() async {
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
       _error = null;
@@ -99,7 +85,7 @@ class _ApplicationStatusScreenState extends State<ApplicationStatusScreen>
             _showAppIdCard = !alreadySeen && token.applicationId != null && token.applicationId!.isNotEmpty;
             _isLoading = false;
           });
-          
+
           if (token.applicationId != null && token.applicationId!.isNotEmpty) {
             await _fetchRteData();
           }
@@ -123,7 +109,7 @@ class _ApplicationStatusScreenState extends State<ApplicationStatusScreen>
   }
 
   Future<void> _fetchRteData() async {
-    if (_token?.applicationId == null || _token?.childDob == null) return;
+    if (!mounted || _token?.applicationId == null || _token?.childDob == null) return;
 
     setState(() {
       _rteLoading = true;
@@ -171,16 +157,34 @@ class _ApplicationStatusScreenState extends State<ApplicationStatusScreen>
 
   @override
   Widget build(BuildContext context) {
+    const primary = Color(0xFF00796B);
+    const ink = Color(0xFF173B36);
+    const pageBackground = Color(0xFFF4F7F6);
+
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: pageBackground,
       appBar: AppBar(
-        title: Text('Application Tracking', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        foregroundColor: ink,
         elevation: 0,
+        surfaceTintColor: Colors.white,
+        titleSpacing: 4,
+        title: Text(
+          'Application Tracking',
+          style: GoogleFonts.outfit(
+            fontWeight: FontWeight.w700,
+            fontSize: 20,
+            color: ink,
+          ),
+        ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          tooltip: 'Back',
+          icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => Navigator.pop(context),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(height: 1, color: const Color(0xFFE7EEEC)),
         ),
       ),
       body: Column(
@@ -189,147 +193,222 @@ class _ApplicationStatusScreenState extends State<ApplicationStatusScreen>
           Expanded(
             child: _isLoading
                 ? const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF00796B)))
+              child: CircularProgressIndicator(
+                color: primary,
+                strokeWidth: 2.5,
+              ),
+            )
+                : _error != null || _token == null
+                ? _buildLoadErrorState()
                 : RefreshIndicator(
               onRefresh: _loadData,
-              color: const Color(0xFF00796B),
-              child: SingleChildScrollView(
+              color: primary,
+              backgroundColor: Colors.white,
+              child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  children: [
-                    if (_showAppIdCard) ...[
-                      _buildPriorityIdCard(),
-                      const SizedBox(height: 24),
-                    ],
-                    _buildDetailsCard(),
-                    const SizedBox(height: 24),
-                    _buildRteStatusSection(),
-                    const SizedBox(height: 40),
+                padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
+                children: [
+                  if (_showAppIdCard) ...[
+                    _buildPriorityIdCard(),
+                    const SizedBox(height: 16),
                   ],
-                ),
+                  _buildDetailsCard(),
+                  const SizedBox(height: 16),
+                  _buildRteStatusSection(),
+                ],
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildLoadErrorState() {
+    const primary = Color(0xFF00796B);
+    final message = _error ?? 'Application details are unavailable.';
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.description_outlined,
+              size: 48,
+              color: Color(0xFF9EAAA7),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.outfit(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF314C47),
+              ),
+            ),
+            const SizedBox(height: 18),
+            OutlinedButton.icon(
+              onPressed: _loadData,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('Try again'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: primary,
+                side: const BorderSide(color: Color(0xFFB9D8D2)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 12,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildPriorityIdCard() {
-    return ScaleTransition(
-      scale: _pulseAnimation,
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF00796B), Color(0xFF004D40)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+    final applicationId = _token?.applicationId;
+    if (applicationId == null || applicationId.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE6F3F0),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFC8E4DE)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00796B).withOpacity(0.10),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: const Icon(
+                  Icons.verified_outlined,
+                  color: Color(0xFF00796B),
+                  size: 21,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Application ID received',
+                  style: GoogleFonts.outfit(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF173B36),
+                  ),
+                ),
+              ),
+            ],
           ),
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF00796B).withOpacity(0.4),
-              blurRadius: 15,
-              offset: const Offset(0, 8),
+          const SizedBox(height: 16),
+          SelectableText(
+            applicationId,
+            style: GoogleFonts.outfit(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.2,
+              color: const Color(0xFF00695C),
             ),
-          ],
-        ),
-        child: Column(
-          children: [
-            const Icon(Icons.stars_rounded, color: Colors.amber, size: 48),
-            const SizedBox(height: 16),
-            Text(
-              'APPLICATION ID RECEIVED',
-              style: GoogleFonts.outfit(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.2,
-              ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Keep this ID for future tracking.',
+            style: GoogleFonts.outfit(
+              fontSize: 13,
+              color: const Color(0xFF54736D),
             ),
-            const SizedBox(height: 12),
-            Text(
-              _token!.applicationId!,
-              style: GoogleFonts.outfit(
-                color: Colors.white,
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Use this ID for future tracking',
-              style: GoogleFonts.outfit(color: Colors.white70, fontSize: 13),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildDetailsCard() {
+    final token = _token;
+    if (token == null) return const SizedBox.shrink();
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE3EAE8)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'Application Details',
-            style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey[900]),
+            style: GoogleFonts.outfit(
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF173B36),
+            ),
           ),
-          const SizedBox(height: 24),
-          _buildInfoRow('Token Number', '#${_token!.tokenNumber}'),
-          if (_token!.applicationId != null)
-            _buildInfoRow('Application ID', _token!.applicationId!),
-          _buildInfoRow('Parent Name', _token!.parentName),
-          _buildInfoRow('Parent Mobile', _token!.parentMobile),
-          _buildInfoRow('Submitted On', DateFormat('dd MMM yyyy').format(_token!.createdAt ?? DateTime.now())),
+          const SizedBox(height: 16),
+          _buildInfoRow('Token Number', '#${token.tokenNumber}'),
+          if (token.applicationId != null && token.applicationId!.isNotEmpty)
+            _buildInfoRow('Application ID', token.applicationId!),
+          _buildInfoRow('Parent Name', token.parentName),
+          _buildInfoRow('Parent Mobile', token.parentMobile),
+          _buildInfoRow(
+            'Submitted On',
+            DateFormat('dd MMM yyyy').format(
+              token.createdAt ?? DateTime.now(),
+            ),
+            isLast: true,
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildInfoRow(String label, String value) {
+  Widget _buildInfoRow(String label, String value, {bool isLast = false}) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 13),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Label — fixed width
-          SizedBox(
-            width: 120,
+          Expanded(
+            flex: 4,
             child: Text(
               label,
               style: GoogleFonts.outfit(
-                color: Colors.black87, 
+                color: const Color(0xFF74827F),
                 fontSize: 13,
+                fontWeight: FontWeight.w400,
               ),
             ),
           ),
-          const SizedBox(width: 8),
-          // Value — takes remaining space, wraps if needed
+          const SizedBox(width: 12),
           Expanded(
+            flex: 6,
             child: Text(
               value,
               textAlign: TextAlign.end,
+              softWrap: true,
               style: GoogleFonts.outfit(
-                fontWeight: FontWeight.w600, 
+                fontWeight: FontWeight.w600,
                 fontSize: 13,
-                color: Colors.blueGrey[900],
+                color: const Color(0xFF263F3A),
               ),
             ),
           ),
@@ -339,74 +418,184 @@ class _ApplicationStatusScreenState extends State<ApplicationStatusScreen>
   }
 
   Widget _buildRteStatusSection() {
-    if (_token?.applicationId == null) return const SizedBox();
-    
-    if (_rteLoading) {
+    if (_token?.applicationId == null || _token!.applicationId!.isEmpty) {
       return Container(
-        padding: const EdgeInsets.all(32),
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE3EAE8)),
         ),
-        child: Column(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const CircularProgressIndicator(color: Color(0xFF00796B)),
-            const SizedBox(height: 20),
-            Text('Syncing with Government Portal...',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.outfit(color: Colors.blueGrey[700], fontSize: 15, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            Text('Fetching latest application updates',
-              style: GoogleFonts.outfit(color: Colors.grey[500], fontSize: 13)),
-          ],
-        ),
-      );
-    }
-    
-    if (_rteError != null) {
-      return Container(
-        padding: const EdgeInsets.all(32),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-        ),
-        child: Column(
-          children: [
-            Icon(Icons.wifi_off_rounded, color: Colors.grey[300], size: 64),
-            const SizedBox(height: 16),
-            Text('Portal Sync Unavailable',
-              style: GoogleFonts.outfit(color: Colors.blueGrey[900], fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text(_rteError!,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.outfit(color: Colors.grey[600], fontSize: 14)),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: _fetchRteData,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Retry Connection'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00796B),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            const Icon(
+              Icons.info_outline_rounded,
+              color: Color(0xFF7C908B),
+              size: 20,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Government portal status will appear here once an application ID is available.',
+                style: GoogleFonts.outfit(
+                  fontSize: 13,
+                  height: 1.45,
+                  color: const Color(0xFF657772),
+                ),
               ),
             ),
           ],
         ),
       );
     }
-    
-    if (_rteData == null) return const SizedBox();
-    
+
+    if (_rteLoading) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE3EAE8)),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(
+                color: Color(0xFF00796B),
+                strokeWidth: 2.5,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'Syncing with government portal',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.outfit(
+                color: const Color(0xFF314C47),
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              'Fetching the latest application updates…',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.outfit(
+                color: const Color(0xFF879591),
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_rteError != null) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE3EAE8)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.wifi_off_rounded,
+                  color: Color(0xFF9A6A30),
+                  size: 21,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Portal sync unavailable',
+                    style: GoogleFonts.outfit(
+                      color: const Color(0xFF314C47),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              _rteError!,
+              style: GoogleFonts.outfit(
+                color: const Color(0xFF74827F),
+                fontSize: 13,
+                height: 1.45,
+              ),
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: _rteLoading ? null : _fetchRteData,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('Retry connection'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF00796B),
+                side: const BorderSide(color: Color(0xFFB9D8D2)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_rteData == null) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE3EAE8)),
+        ),
+        child: Text(
+          'Date of birth is required to fetch the government portal status.',
+          style: GoogleFonts.outfit(
+            fontSize: 13,
+            height: 1.45,
+            color: const Color(0xFF74827F),
+          ),
+        ),
+      );
+    }
+
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _buildRteStatusCard(context),
-        const SizedBox(height: 24),
-        ..._rteData!.sections.entries.map((section) =>
-          _buildRteInfoSection(context, section.key, section.value)),
+        const SizedBox(height: 16),
+        ..._rteData!.sections.entries.map(
+              (section) => _buildRteInfoSection(
+            context,
+            section.key,
+            section.value,
+          ),
+        ),
         if (_rteData!.schools.isNotEmpty)
-          _buildRteGridSection(context, "Selected Schools", 
-            _rteData!.schools, Icons.school_rounded),
+          _buildRteGridSection(
+            context,
+            'Selected Schools',
+            _rteData!.schools,
+            Icons.school_outlined,
+          ),
         if (_rteData!.documents.isNotEmpty)
           _buildRteDocumentsSection(context, _rteData!.documents),
       ],
@@ -415,39 +604,80 @@ class _ApplicationStatusScreenState extends State<ApplicationStatusScreen>
 
   Widget _buildRteStatusCard(BuildContext context) {
     final msg = _rteData!.statusMessage.toLowerCase();
-    final bool isApproved = msg.contains('મંજૂ') || msg.contains('approved') || msg.contains('accept') || msg.contains('ફાળવ');
-    final bool isRejected = msg.contains('નામંજૂ') || msg.contains('reject') || msg.contains('refused');
+    final bool isApproved = msg.contains('મંજૂ') ||
+        msg.contains('approved') ||
+        msg.contains('accept') ||
+        msg.contains('ફાળવ');
+    final bool isRejected = msg.contains('નામંજૂ') ||
+        msg.contains('reject') ||
+        msg.contains('refused');
 
-    final Color statusColor = isApproved ? const Color(0xFF2E7D32) : isRejected ? const Color(0xFFC62828) : const Color(0xFFE65100);
-    final IconData statusIcon = isApproved ? Icons.check_circle_rounded : isRejected ? Icons.cancel_rounded : Icons.access_time_filled_rounded;
+    final Color statusColor = isApproved
+        ? const Color(0xFF2E7D32)
+        : isRejected
+        ? const Color(0xFFC62828)
+        : const Color(0xFF9A6A30);
+    final IconData statusIcon = isApproved
+        ? Icons.check_circle_rounded
+        : isRejected
+        ? Icons.cancel_rounded
+        : Icons.access_time_filled_rounded;
 
     return Container(
-      padding: const EdgeInsets.all(24),
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: statusColor.withOpacity(0.15), width: 2),
-        boxShadow: [BoxShadow(color: statusColor.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 10))],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE3EAE8)),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(statusIcon, color: statusColor, size: 28),
-              const SizedBox(width: 12),
-              Text('GOVERNMENT STATUS', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: statusColor, letterSpacing: 1)),
+              Icon(statusIcon, color: statusColor, size: 21),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  'Government Status',
+                  style: GoogleFonts.outfit(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF173B36),
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 9,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  isApproved ? 'APPROVED' : isRejected ? 'REJECTED' : 'UPDATE',
+                  style: GoogleFonts.outfit(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: statusColor,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 14),
           Text(
             _rteData!.statusMessage,
-            textAlign: TextAlign.center,
+            textAlign: TextAlign.start,
             style: GoogleFonts.notoSansGujarati(
-              fontSize: 17,
+              fontSize: 15,
               height: 1.6,
-              fontWeight: FontWeight.w600,
-              color: Colors.blueGrey[900],
+              fontWeight: FontWeight.w500,
+              color: const Color(0xFF314C47),
             ),
           ),
         ],
@@ -455,42 +685,66 @@ class _ApplicationStatusScreenState extends State<ApplicationStatusScreen>
     );
   }
 
-  Widget _buildRteInfoSection(BuildContext context, String title, Map<String, String> fields) {
+  Widget _buildRteInfoSection(
+      BuildContext context,
+      String title,
+      Map<String, String> fields,
+      ) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 24),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.grey[200]!),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE3EAE8)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 13),
             child: Text(
               title,
-              style: GoogleFonts.notoSansGujarati(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF00796B)),
+              style: GoogleFonts.notoSansGujarati(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF00796B),
+              ),
             ),
           ),
-          const Divider(height: 1),
+          const Divider(height: 1, color: Color(0xFFEDF1F0)),
           Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(16),
             child: Column(
-              children: fields.entries.map((e) {
+              children: fields.entries.map((entry) {
                 return Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.only(bottom: 13),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        flex: 2,
-                        child: Text(e.key, style: TextStyle(fontSize: 13, color: Colors.black87, fontWeight: FontWeight.w500)),
+                        flex: 4,
+                        child: Text(
+                          entry.key,
+                          style: GoogleFonts.notoSansGujarati(
+                            fontSize: 12,
+                            color: const Color(0xFF74827F),
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 10),
                       Expanded(
-                        flex: 3,
-                        child: Text(e.value, textAlign: TextAlign.end, style: GoogleFonts.notoSansGujarati(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blueGrey[900])),
+                        flex: 6,
+                        child: Text(
+                          entry.value,
+                          textAlign: TextAlign.end,
+                          softWrap: true,
+                          style: GoogleFonts.notoSansGujarati(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF263F3A),
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -503,24 +757,31 @@ class _ApplicationStatusScreenState extends State<ApplicationStatusScreen>
     );
   }
 
-  Widget _buildRteGridSection(BuildContext context, String title, List<List<String>> rows, IconData icon) {
+  Widget _buildRteGridSection(
+      BuildContext context,
+      String title,
+      List<List<String>> rows,
+      IconData icon,
+      ) {
+    if (rows.isEmpty) return const SizedBox.shrink();
+
     return Container(
       margin: const EdgeInsets.only(bottom: 24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.grey[200]!),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE3EAE8)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                Icon(icon, color: const Color(0xFF00796B), size: 22),
+                Icon(icon, color: const Color(0xFF00796B), size: 21),
                 const SizedBox(width: 12),
-                Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
+                Text(title, style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w700, color: const Color(0xFF173B36))),
               ],
             ),
           ),
@@ -529,10 +790,34 @@ class _ApplicationStatusScreenState extends State<ApplicationStatusScreen>
             scrollDirection: Axis.horizontal,
             child: DataTable(
               showCheckboxColumn: false,
-              columns: rows[0].map((h) => DataColumn(label: Text(h, style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)))).toList(),
+              columns: rows[0]
+                  .map(
+                    (heading) => DataColumn(
+                  label: Text(
+                    heading,
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              )
+                  .toList(),
               rows: rows.skip(1).map((row) {
                 return DataRow(
-                  cells: row.map((c) => DataCell(Text(c, style: GoogleFonts.notoSansGujarati(fontSize: 11, color: Colors.black87)))).toList(),
+                  cells: row
+                      .map(
+                        (cell) => DataCell(
+                      Text(
+                        cell,
+                        style: GoogleFonts.notoSansGujarati(
+                          fontSize: 11,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ),
+                  )
+                      .toList(),
                 );
               }).toList(),
             ),
@@ -550,19 +835,30 @@ class _ApplicationStatusScreenState extends State<ApplicationStatusScreen>
       margin: const EdgeInsets.only(bottom: 24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.grey[200]!),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE3EAE8)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                const Icon(Icons.file_present_rounded, color: Color(0xFF00796B), size: 22),
+                const Icon(
+                  Icons.file_present_rounded,
+                  color: Color(0xFF00796B),
+                  size: 21,
+                ),
                 const SizedBox(width: 12),
-                const Text('Uploaded Documents', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
+                Text(
+                  'Uploaded Documents',
+                  style: GoogleFonts.outfit(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF173B36),
+                  ),
+                ),
               ],
             ),
           ),
@@ -583,10 +879,10 @@ class _ApplicationStatusScreenState extends State<ApplicationStatusScreen>
 
             return Container(
               decoration: BoxDecoration(
-                border: Border(bottom: BorderSide(color: Colors.grey[100]!)),
+                border: const Border(bottom: BorderSide(color: Color(0xFFEDF1F0))),
               ),
               child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 leading: Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(color: const Color(0xFF00796B).withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
@@ -596,17 +892,17 @@ class _ApplicationStatusScreenState extends State<ApplicationStatusScreen>
                 subtitle: Text(size, style: const TextStyle(fontSize: 12, color: Colors.black45)),
                 trailing: url.isNotEmpty
                     ? ElevatedButton.icon(
-                        onPressed: () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
-                        icon: const Icon(Icons.open_in_new_rounded, size: 14),
-                        label: const Text('View', style: TextStyle(fontSize: 12)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF00796B),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          elevation: 0,
-                        ),
-                      )
+                  onPressed: () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
+                  icon: const Icon(Icons.open_in_new_rounded, size: 14),
+                  label: const Text('View', style: TextStyle(fontSize: 12)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF00796B),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                )
                     : null,
               ),
             );

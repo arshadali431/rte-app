@@ -25,7 +25,12 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
   String? _tokenId;
   List<DocumentModel> _uploadedDocs = [];
   bool _isLoading = true;
+  String? _loadError;
   String? _uploadingType;
+
+  static const Color _accent = Color(0xFF00796B);
+  static const Color _ink = Color(0xFF173B35);
+  static const Color _pageBackground = Color(0xFFF4F8F7);
   bool _isProcessing = false;
   final Set<String> _deletingIds = {};
 
@@ -36,22 +41,41 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
   }
 
   Future<void> _loadData() async {
-    setState(() => _isLoading = true);
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
+
     try {
       final prefs = await SharedPreferences.getInstance();
       _tokenId = prefs.getString('token_id');
 
-      if (_tokenId != null) {
-        final docs = await FirestoreService().getDocuments(_tokenId!);
+      if (_tokenId == null || _tokenId!.isEmpty) {
         if (mounted) {
           setState(() {
-            _uploadedDocs = docs;
+            _uploadedDocs = [];
+            _loadError = 'Your session could not be found. Return to the previous screen and open Document Vault again.';
             _isLoading = false;
           });
         }
+        return;
       }
-    } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
+
+      final docs = await FirestoreService().getDocuments(_tokenId!);
+      if (!mounted) return;
+      setState(() {
+        _uploadedDocs = docs;
+        _isLoading = false;
+      });
+    } catch (e, stackTrace) {
+      debugPrint('Document vault load failed: $e\n$stackTrace');
+      if (mounted) {
+        setState(() {
+          _loadError = 'Could not load your documents. Check your connection and try again.';
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -80,6 +104,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
 
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -255,7 +280,8 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
     final picker = ImagePicker();
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -318,14 +344,14 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
     try {
       // 3. Merge
       final mergedFile = await ImageUtils.mergeImagesHorizontally(frontFile, backFile);
-      
+
       setState(() => _isProcessing = false);
-      
+
       if (mergedFile == null) throw 'Merge failed';
 
       // 4. Preview
       if (!mounted) return;
-      
+
       final bool? confirmUpload = await Navigator.push<bool>(
         context,
         MaterialPageRoute(
@@ -343,8 +369,8 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context, true),
-                  child: Text('UPLOAD', 
-                    style: GoogleFonts.outfit(color: const Color(0xFF00796B), fontWeight: FontWeight.bold, fontSize: 16)),
+                  child: Text('UPLOAD',
+                      style: GoogleFonts.outfit(color: const Color(0xFF00796B), fontWeight: FontWeight.bold, fontSize: 16)),
                 ),
                 const SizedBox(width: 8),
               ],
@@ -414,7 +440,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
         );
         await FirestoreService().addDocument(_tokenId!, docModel);
         await _loadData();
-        
+
         if (mounted) {
           ScaffoldMessenger.of(context).hideCurrentSnackBar();
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -626,177 +652,350 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
     }
   }
 
+  Widget _buildLoadError() {
+    final hasSession = _tokenId != null && _tokenId!.isNotEmpty;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE7F2F0),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Icon(
+                  hasSession ? Icons.cloud_off_rounded : Icons.folder_off_outlined,
+                  color: _accent,
+                  size: 30,
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                hasSession ? 'Unable to load documents' : 'Session not found',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.outfit(
+                  color: _ink,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _loadError ?? 'Please try again.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.outfit(
+                  color: const Color(0xFF647772),
+                  fontSize: 14,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 22),
+              if (hasSession)
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: ElevatedButton.icon(
+                    onPressed: _loadData,
+                    icon: const Icon(Icons.refresh_rounded, size: 19),
+                    label: Text(
+                      'Try again',
+                      style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _accent,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                )
+              else
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).maybePop(),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _accent,
+                      side: const BorderSide(color: _accent),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(
+                      'Go back',
+                      style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    int mandatoryUploaded = _uploadedDocs
+    final mandatoryUploaded = _uploadedDocs
         .where((d) => AppConstants.mandatoryDocTypes.contains(d.docType))
         .length;
+    final customDocs = _uploadedDocs
+        .where((d) => !AppConstants.mandatoryDocTypes.contains(d.docType))
+        .toList();
 
     return Stack(
       children: [
         Scaffold(
-          backgroundColor: Colors.grey[50],
+          backgroundColor: _pageBackground,
           appBar: AppBar(
-        title: Text(
-          'Document Vault',
-          style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
-      ),
-      body: Column(
-        children: [
-          const NoInternetBanner(),
-          Expanded(
-            child: _isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF00796B)),
-                  )
-          : Scrollbar(
-              child: CustomScrollView(
-                slivers: [
-                  SliverToBoxAdapter(
-                    child: _buildProgressHeader(mandatoryUploaded),
-                  ),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
-                      child: Row(
-                        children: [
-                          Text(
-                            'REQUIRED DOCUMENTS',
-                            style: GoogleFonts.outfit(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                              color: Colors.redAccent,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          const CircleAvatar(
-                            radius: 3,
-                            backgroundColor: Colors.redAccent,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  SliverList(
-                    delegate: SliverChildBuilderDelegate((context, index) {
-                      final type = AppConstants.mandatoryDocTypes[index];
-                      final existing = _uploadedDocs.firstWhere(
-                        (d) => d.docType == type,
-                        orElse: () => DocumentModel(
-                          id: '',
-                          docType: '',
-                          fileName: '',
-                          storagePath: '',
-                        ),
-                      );
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: _buildDocCard(
-                          type,
-                          existing.storagePath.isNotEmpty ? existing : null,
-                          isMandatory: true,
-                        ),
-                      );
-                    }, childCount: AppConstants.mandatoryDocTypes.length),
-                  ),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 32, 20, 12),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'OTHER DOCUMENTS (MAX 3)',
-                              style: GoogleFonts.outfit(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                                color: Colors.blueGrey[600],
-                                letterSpacing: 1.2,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (_uploadedDocs.where((d) => !AppConstants.mandatoryDocTypes.contains(d.docType)).length < 3)
-                            TextButton.icon(
-                              onPressed: _addCustomDocument,
-                              icon: const Icon(Icons.add_circle_outline_rounded, size: 16, color: Color(0xFF00796B)),
-                              label: Text('Add New', style: GoogleFonts.outfit(color: const Color(0xFF00796B), fontSize: 12, fontWeight: FontWeight.bold)),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  _uploadedDocs.where((d) => !AppConstants.mandatoryDocTypes.contains(d.docType)).isEmpty
-                    ? SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                          child: Text('No additional documents uploaded', style: GoogleFonts.outfit(color: Colors.black45, fontSize: 12)),
-                        ),
-                      )
-                    : SliverList(
-                        delegate: SliverChildBuilderDelegate((context, index) {
-                          final customDocs = _uploadedDocs.where((d) => !AppConstants.mandatoryDocTypes.contains(d.docType)).toList();
-                          final doc = customDocs[index];
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            child: _buildDocCard(
-                               doc.docType,
-                               doc,
-                               isMandatory: false,
-                            ),
-                          );
-                        }, childCount: _uploadedDocs.where((d) => !AppConstants.mandatoryDocTypes.contains(d.docType)).length),
-                      ),
-                  const SliverToBoxAdapter(child: SizedBox(height: 40)),
-                ],
-                ),
+            title: Text(
+              'Document Vault',
+              style: GoogleFonts.outfit(
+                color: _ink,
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
               ),
             ),
-          ],
-        ),
-      ),
-        if (_isProcessing)
-          Container(
-            color: Colors.black.withOpacity(0.6),
-            child: Center(
-              child: Container(
-                width: 200,
-                padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(28),
+            backgroundColor: Colors.white,
+            foregroundColor: _ink,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            shape: const Border(
+              bottom: BorderSide(color: Color(0xFFE7EFED)),
+            ),
+          ),
+          body: Column(
+            children: [
+              const NoInternetBanner(),
+              Expanded(
+                child: _isLoading
+                    ? const Center(
+                  child: CircularProgressIndicator(
+                    color: _accent,
+                    strokeWidth: 2.5,
+                  ),
+                )
+                    : _loadError != null
+                    ? _buildLoadError()
+                    : RefreshIndicator(
+                  onRefresh: _loadData,
+                  color: _accent,
+                  backgroundColor: Colors.white,
+                  child: Scrollbar(
+                    child: CustomScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      slivers: [
+                        SliverToBoxAdapter(
+                          child: _buildProgressHeader(mandatoryUploaded),
+                        ),
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
+                            child: Row(
+                              children: [
+                                Text(
+                                  'REQUIRED DOCUMENTS',
+                                  style: GoogleFonts.outfit(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12,
+                                    color: _ink,
+                                    letterSpacing: 1.0,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 3,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFFF0E9),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    'MANDATORY',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w700,
+                                      color: const Color(0xFFB65A35),
+                                      letterSpacing: 0.4,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                                (context, index) {
+                              final type = AppConstants.mandatoryDocTypes[index];
+                              final existing = _uploadedDocs.firstWhere(
+                                    (d) => d.docType == type,
+                                orElse: () => DocumentModel(
+                                  id: '',
+                                  docType: '',
+                                  fileName: '',
+                                  storagePath: '',
+                                ),
+                              );
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 20),
+                                child: _buildDocCard(
+                                  type,
+                                  existing.storagePath.isNotEmpty ? existing : null,
+                                  isMandatory: true,
+                                ),
+                              );
+                            },
+                            childCount: AppConstants.mandatoryDocTypes.length,
+                          ),
+                        ),
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 24, 12, 10),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    'OTHER DOCUMENTS',
+                                    style: GoogleFonts.outfit(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12,
+                                      color: _ink,
+                                      letterSpacing: 1.0,
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  '${customDocs.length}/3',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF748781),
+                                  ),
+                                ),
+                                if (customDocs.length < 3) ...[
+                                  const SizedBox(width: 8),
+                                  TextButton.icon(
+                                    onPressed: _addCustomDocument,
+                                    icon: const Icon(Icons.add_rounded, size: 18),
+                                    label: Text(
+                                      'Add',
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: _accent,
+                                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                        if (customDocs.isEmpty)
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: const Color(0xFFE3ECE9)),
+                                ),
+                                child: Text(
+                                  'No additional documents uploaded',
+                                  style: GoogleFonts.outfit(
+                                    color: const Color(0xFF748781),
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          )
+                        else
+                          SliverList(
+                            delegate: SliverChildBuilderDelegate(
+                                  (context, index) => Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 20),
+                                child: _buildDocCard(
+                                  customDocs[index].docType,
+                                  customDocs[index],
+                                  isMandatory: false,
+                                ),
+                              ),
+                              childCount: customDocs.length,
+                            ),
+                          ),
+                        const SliverToBoxAdapter(child: SizedBox(height: 32)),
+                      ],
+                    ),
+                  ),
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const SizedBox(
-                      width: 44,
-                      height: 44,
-                      child: CircularProgressIndicator(
-                        color: Color(0xFF00796B),
-                        strokeWidth: 4,
-                        strokeCap: StrokeCap.round,
+              ),
+            ],
+          ),
+        ),
+        if (_isProcessing)
+          Positioned.fill(
+            child: Container(
+              color: Colors.black.withOpacity(0.35),
+              child: Center(
+                child: Container(
+                  width: 230,
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: const Color(0xFFE3ECE9)),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(
+                        width: 38,
+                        height: 38,
+                        child: CircularProgressIndicator(
+                          color: _accent,
+                          strokeWidth: 3,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      'Wait for Processing',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Joining Aadhaar Sides...',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.outfit(color: Colors.grey, fontSize: 12),
-                    ),
-                  ],
+                      const SizedBox(height: 18),
+                      Text(
+                        'Preparing Aadhaar',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.outfit(
+                          color: _ink,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Joining front and back images…',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.outfit(
+                          color: const Color(0xFF748781),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -806,54 +1005,80 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
   }
 
   Widget _buildProgressHeader(int count) {
-    int totalMandatory = AppConstants.mandatoryDocTypes.length;
-    double progress = count / totalMandatory;
+    final totalMandatory = AppConstants.mandatoryDocTypes.length;
+    final double progress = totalMandatory == 0
+        ? 0.0
+        : (count / totalMandatory).clamp(0.0, 1.0).toDouble();
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      margin: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE3ECE9)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                '$count of $totalMandatory Required',
-                style: GoogleFonts.outfit(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                  color: Colors.black,
+              Expanded(
+                child: Text(
+                  'Upload progress',
+                  style: GoogleFonts.outfit(
+                    color: _ink,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
               Text(
-                '${(progress * 100).toInt()}%',
+                '${(progress * 100).round()}%',
                 style: GoogleFonts.outfit(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                  color: const Color(0xFF00796B),
+                  color: _accent,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 10,
-              backgroundColor: Colors.grey[100],
-              color: const Color(0xFF00796B),
+          const SizedBox(height: 7),
+          Text(
+            '$count of $totalMandatory required documents uploaded',
+            style: GoogleFonts.outfit(
+              color: const Color(0xFF748781),
+              fontSize: 12,
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Complete mandatory uploads to finalize your application',
-            style: GoogleFonts.outfit(fontSize: 12, color: Colors.black54),
+          const SizedBox(height: 14),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 7,
+              backgroundColor: const Color(0xFFEAF1EF),
+              color: _accent,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.info_outline_rounded, size: 15, color: Color(0xFF748781)),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  'Complete all required uploads to finalize your application.',
+                  style: GoogleFonts.outfit(
+                    fontSize: 12,
+                    height: 1.35,
+                    color: const Color(0xFF748781),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -861,14 +1086,14 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
   }
 
   Widget _buildDocCard(
-    String type,
-    DocumentModel? doc, {
-    required bool isMandatory,
-  }) {
+      String type,
+      DocumentModel? doc, {
+        required bool isMandatory,
+      }) {
     final isUploading = _uploadingType == type;
-    final isDeleting = doc != null && _deletingIds.contains(doc.id!);
-    final String label = AppConstants.docTypeNames[type] ?? type;
-    
+    final isDeleting = doc != null && doc.id != null && _deletingIds.contains(doc.id!);
+    final label = AppConstants.docTypeNames[type] ?? type;
+
     IconData icon = Icons.description_outlined;
     if (AppConstants.docTypeIcons.containsKey(type)) {
       icon = AppConstants.docTypeIcons[type]!;
@@ -877,202 +1102,193 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
       if (low.contains('photo')) icon = Icons.face_rounded;
       if (low.contains('birth')) icon = Icons.cake_rounded;
       if (low.contains('cert')) icon = Icons.verified_rounded;
-      if (low.contains('aadhaar') || low.contains('pan')) icon = Icons.credit_card_rounded;
+      if (low.contains('aadhaar') || low.contains('pan')) {
+        icon = Icons.credit_card_rounded;
+      }
     }
 
-    Color leftBorderColor = Colors.grey[300]!;
-    if (doc != null) {
-      leftBorderColor = Colors.green;
-    } else if (isMandatory) {
-      leftBorderColor = Colors.redAccent.withOpacity(0.5);
-    }
+    final statusColor = doc != null
+        ? const Color(0xFF2E7D5B)
+        : isMandatory
+        ? const Color(0xFFB65A35)
+        : const Color(0xFF748781);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 5,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: doc != null
+              ? const Color(0xFFCFE7DD)
+              : const Color(0xFFE3ECE9),
+        ),
       ),
-      child: InkWell(
-        onTap: (isUploading || isDeleting || doc != null)
-            ? null
-            : () => _pickAndUpload(type),
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            border: Border(left: BorderSide(color: leftBorderColor, width: 4)),
-          ),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: doc != null ? Colors.green[50] : Colors.grey[50],
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      icon,
-                      size: 24,
-                      color: doc != null ? Colors.green : Colors.grey[600],
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          label,
-                          style: GoogleFonts.outfit(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                            color: Colors.blueGrey[900],
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        if (doc != null)
-                          Text(
-                            'Uploaded ${DateFormat('dd MMM, yyyy').format(doc.uploadedAt ?? DateTime.now())}',
-                            style: GoogleFonts.outfit(
-                              fontSize: 11,
-                              color: Colors.grey[500],
-                            ),
-                          )
-                        else
-                          Row(
-                            children: [
-                              _buildCardStatusChip(
-                                isMandatory ? 'REQUIRED' : 'OPTIONAL',
-                                isMandatory
-                                    ? Colors.redAccent
-                                    : Colors.grey[600]!,
-                              ),
-                            ],
-                          ),
-                      ],
-                    ),
-                  ),
-                  if (doc != null)
-                    const SizedBox.shrink()
-                  else if (isUploading)
-                    const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Color(0xFF00796B),
-                      ),
-                    )
-                  else
-                    const Icon(
-                      Icons.add_a_photo_outlined,
-                      color: Color(0xFF00796B),
-                      size: 24,
-                    ),
-                ],
-              ),
-              if (isUploading) ...[
-                const SizedBox(height: 12),
-                const LinearProgressIndicator(
-                  minHeight: 2,
-                  color: Color(0xFF00796B),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Compressing & Uploading...',
-                  style: GoogleFonts.outfit(
-                    fontSize: 10,
-                    color: const Color(0xFF00796B),
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-              if (doc != null && !isDeleting) ...[
-                const Divider(height: 20, thickness: 0.5),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          onTap: (isUploading || isDeleting || doc != null)
+              ? null
+              : () => _pickAndUpload(type),
+          borderRadius: BorderRadius.circular(14),
+          child: Padding(
+            padding: const EdgeInsets.all(15),
+            child: Column(
+              children: [
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    // VIEW button
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => _viewDocument(doc),
-                        icon: const Icon(Icons.visibility_outlined, size: 16),
-                        label: Text(
-                          'View',
-                          style: GoogleFonts.outfit(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF00796B),
-                          side: const BorderSide(
-                            color: Color(0xFF00796B),
-                            width: 1,
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: doc != null
+                            ? const Color(0xFFE6F4ED)
+                            : const Color(0xFFEAF3F1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        doc != null ? Icons.check_rounded : icon,
+                        size: 22,
+                        color: doc != null ? const Color(0xFF2E7D5B) : _accent,
                       ),
                     ),
                     const SizedBox(width: 12),
-                    // DELETE button
                     Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => _handleDelete(doc),
-                        icon: const Icon(
-                          Icons.delete_outline_rounded,
-                          size: 16,
-                        ),
-                        label: Text(
-                          'Delete',
-                          style: GoogleFonts.outfit(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            label,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.outfit(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 15,
+                              height: 1.2,
+                              color: _ink,
+                            ),
                           ),
+                          const SizedBox(height: 6),
+                          if (doc != null)
+                            Text(
+                              'Uploaded ${DateFormat('dd MMM yyyy').format(doc.uploadedAt ?? DateTime.now())}',
+                              style: GoogleFonts.outfit(
+                                fontSize: 11,
+                                color: const Color(0xFF748781),
+                              ),
+                            )
+                          else
+                            _buildCardStatusChip(
+                              isMandatory ? 'REQUIRED' : 'OPTIONAL',
+                              statusColor,
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    if (isUploading || isDeleting)
+                      SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.2,
+                          color: isDeleting ? Colors.redAccent : _accent,
                         ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.redAccent,
-                          side: const BorderSide(
-                            color: Colors.redAccent,
-                            width: 1,
+                      )
+                    else if (doc == null)
+                      Icon(
+                        Icons.add_a_photo_outlined,
+                        size: 21,
+                        color: _accent.withOpacity(0.8),
+                      )
+                    else
+                      const Icon(
+                        Icons.check_circle_rounded,
+                        size: 21,
+                        color: Color(0xFF2E7D5B),
+                      ),
+                  ],
+                ),
+                if (isUploading) ...[
+                  const SizedBox(height: 12),
+                  const LinearProgressIndicator(
+                    minHeight: 2,
+                    color: _accent,
+                    backgroundColor: Color(0xFFEAF1EF),
+                  ),
+                  const SizedBox(height: 7),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Processing and uploading…',
+                      style: GoogleFonts.outfit(
+                        fontSize: 11,
+                        color: _accent,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+                if (doc != null && !isDeleting) ...[
+                  const SizedBox(height: 14),
+                  const Divider(height: 1, color: Color(0xFFEAF0EE)),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _viewDocument(doc),
+                          icon: const Icon(Icons.visibility_outlined, size: 17),
+                          label: Text(
+                            'View',
+                            style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w600),
                           ),
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: _accent,
+                            side: const BorderSide(color: Color(0xFFD0E2DE)),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
-              if (isDeleting) ...[
-                const Divider(height: 20, thickness: 0.5),
-                const Center(
-                  child: SizedBox(
-                    height: 24,
-                    width: 24,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _handleDelete(doc),
+                          icon: const Icon(Icons.delete_outline_rounded, size: 17),
+                          label: Text(
+                            'Delete',
+                            style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w600),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFFB83A46),
+                            side: const BorderSide(color: Color(0xFFF0D6D8)),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                if (isDeleting) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Deleting document…',
+                    style: GoogleFonts.outfit(
+                      fontSize: 11,
                       color: Colors.redAccent,
                     ),
                   ),
-                ),
-                const SizedBox(height: 8),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -1081,18 +1297,18 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
 
   Widget _buildCardStatusChip(String label, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(4),
+        color: color.withOpacity(0.09),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
         label,
         style: GoogleFonts.outfit(
           color: color,
-          fontSize: 9,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 0.5,
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.35,
         ),
       ),
     );

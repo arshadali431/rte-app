@@ -17,7 +17,7 @@ class RteStatusScreen extends StatefulWidget {
 
 class _RteStatusScreenState extends State<RteStatusScreen> {
   final TextEditingController appController =
-      TextEditingController(text: 'GJ/2026-27/SRC/');
+  TextEditingController(text: 'GJ/2026-27/SRC/');
   final TextEditingController dobController = TextEditingController();
 
   bool loading = false;
@@ -31,14 +31,19 @@ class _RteStatusScreenState extends State<RteStatusScreen> {
   }
 
   Future<void> _loadHistory() async {
-    final prefs = await SharedPreferences.getInstance();
-    final String? historyJson = prefs.getString('rte_check_history');
-    if (historyJson != null) {
-      setState(() {
-        _history = List<Map<String, String>>.from(
-          json.decode(historyJson).map((item) => Map<String, String>.from(item)),
-        );
-      });
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String? historyJson = prefs.getString('rte_check_history');
+      if (historyJson == null || !mounted) return;
+
+      final decoded = json.decode(historyJson) as List<dynamic>;
+      final history = decoded
+          .map((item) => Map<String, String>.from(item as Map))
+          .toList();
+
+      if (mounted) setState(() => _history = history);
+    } catch (e) {
+      debugPrint('Unable to load RTE check history: $e');
     }
   }
 
@@ -46,28 +51,29 @@ class _RteStatusScreenState extends State<RteStatusScreen> {
     final prefs = await SharedPreferences.getInstance();
     final now = DateTime.now();
     final String time = "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
-    
+
     // Remove if already exists to move to top
     _history.removeWhere((item) => item['appNum'] == appNum);
-    
+
     _history.insert(0, {
-      'appNum': appNum, 
+      'appNum': appNum,
       'dob': dob,
       'time': time,
     });
-    
+
     // Keep last 10
     if (_history.length > 10) _history.removeLast();
 
     await prefs.setString('rte_check_history', json.encode(_history));
-    setState(() {});
+    if (mounted) setState(() {});
   }
 
   Future<void> _removeFromHistory(int index) async {
+    if (index < 0 || index >= _history.length) return;
     final prefs = await SharedPreferences.getInstance();
     _history.removeAt(index);
     await prefs.setString('rte_check_history', json.encode(_history));
-    setState(() {});
+    if (mounted) setState(() {});
   }
 
   void _showHistory() {
@@ -191,8 +197,8 @@ class _RteStatusScreenState extends State<RteStatusScreen> {
 
   Future<void> fetchStatus() async {
     FocusScope.of(context).unfocus();
-    if (appController.text.isEmpty || dobController.text.isEmpty) {
-      _showSnackbar("Please fill all fields");
+    if (appController.text.trim().isEmpty || dobController.text.trim().isEmpty) {
+      _showSnackbar('Please fill all fields');
       return;
     }
 
@@ -202,45 +208,55 @@ class _RteStatusScreenState extends State<RteStatusScreen> {
     });
 
     try {
-      final data = await RteService().fetchApplicationStatus(
-        appController.text.trim(),
-        dobController.text.trim(),
+      final appNumber = appController.text.trim();
+      final dob = dobController.text.trim();
+      final data = await RteService().fetchApplicationStatus(appNumber, dob);
+
+      if (!mounted) return;
+      setState(() => loading = false);
+      await _saveToHistory(appNumber, dob);
+      if (!mounted) return;
+
+      FocusScope.of(context).unfocus();
+      await Navigator.of(context).push(
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              RteResultScreen(data: data),
+          transitionDuration: const Duration(milliseconds: 200),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(
+              opacity: CurveTween(curve: Curves.easeInOut).animate(animation),
+              child: child,
+            );
+          },
+        ),
       );
 
-      setState(() => loading = false);
-
       if (mounted) {
-        _saveToHistory(appController.text.trim(), dobController.text.trim());
+        setState(() {
+          appController.text = 'GJ/2026-27/SRC/';
+          dobController.clear();
+        });
         FocusScope.of(context).unfocus();
-        await Navigator.of(context).push(
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                RteResultScreen(data: data),
-            transitionDuration: const Duration(milliseconds: 200),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return FadeTransition(
-                opacity: CurveTween(curve: Curves.easeInOut).animate(animation),
-                child: child,
-              );
-            },
-          ),
-        );
-        if (mounted) {
-          setState(() {
-            appController.text = 'GJ/2026-27/SRC/';
-            dobController.clear();
-          });
-          FocusScope.of(context).unfocus();
-        }
       }
-    } catch (e) {
-      setState(() {
-        errorMessage = "Something went wrong. Check details or connection.";
-        loading = false;
-      });
+    } catch (e, stackTrace) {
+      debugPrint('RTE status check failed: $e\n$stackTrace');
+      if (mounted) {
+        setState(() {
+          errorMessage = 'Something went wrong. Check details or connection.';
+          loading = false;
+        });
+      }
     }
   }
 
+
+  @override
+  void dispose() {
+    appController.dispose();
+    dobController.dispose();
+    super.dispose();
+  }
 
   void _showSnackbar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -250,79 +266,89 @@ class _RteStatusScreenState extends State<RteStatusScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Stack(
-        children: [
-          // 1. Dynamic Background Gradient
-          Container(
-            width: double.infinity,
-            height: double.infinity,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFF004D40), // Deep Teal
-                  Color(0xFF00251A), // Darker Teal
-                  Color(0xFF0D2B2B), // Very Dark
-                ],
-              ),
-            ),
-          ),
-          
-          // 2. Decorative Background blobs
-          Positioned(
-            top: -60,
-            right: -60,
-            child: Container(
-              width: 280,
-              height: 280,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFF00796B).withOpacity(0.12),
-              ),
-            ),
-          ),
+    const accent = Color(0xFF4DB6AC);
 
-          // 3. Content
-          Column(
+    return Scaffold(
+      backgroundColor: const Color(0xFF082923),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF103D35),
+              Color(0xFF092C26),
+              Color(0xFF081F20),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
             children: [
               NoInternetBanner(),
-              // Custom Navigation Header
-              Container(
-                padding: const EdgeInsets.fromLTRB(20, 50, 16, 10),
+
+              // Compact page header
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 10, 14, 16),
                 child: Row(
                   children: [
-                    InkWell(
-                      onTap: () => Navigator.of(context).pop(),
+                    Material(
+                      color: Colors.white.withOpacity(0.07),
                       borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.05),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.arrow_back_ios_new_rounded,
-                          color: Colors.white70,
-                          size: 18,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () => Navigator.of(context).maybePop(),
+                        child: const SizedBox(
+                          width: 44,
+                          height: 44,
+                          child: Icon(
+                            Icons.arrow_back_rounded,
+                            color: Colors.white,
+                            size: 21,
+                          ),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    Text(
-                      'Status Checker',
-                      style: GoogleFonts.outfit(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Status Checker',
+                            style: GoogleFonts.outfit(
+                              fontSize: 23,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Check your RTE application',
+                            style: GoogleFonts.outfit(
+                              fontSize: 13,
+                              color: Colors.white.withOpacity(0.62),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: _showHistory,
-                      icon: const Icon(Icons.history_rounded, color: Colors.white70, size: 22),
-                      tooltip: 'Recent Checks',
+                    Material(
+                      color: Colors.white.withOpacity(0.06),
+                      borderRadius: BorderRadius.circular(12),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: _showHistory,
+                        child: const SizedBox(
+                          width: 44,
+                          height: 44,
+                          child: Icon(
+                            Icons.history_rounded,
+                            color: Colors.white,
+                            size: 21,
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -330,142 +356,160 @@ class _RteStatusScreenState extends State<RteStatusScreen> {
 
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
+                  keyboardDismissBehavior:
+                  ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Elite Credential Card
                       Container(
-                        padding: const EdgeInsets.all(28),
+                        padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.06),
-                          borderRadius: BorderRadius.circular(32),
+                          color: Colors.white.withOpacity(0.045),
+                          borderRadius: BorderRadius.circular(18),
                           border: Border.all(
-                            color: const Color(0xFF4DB6AC).withOpacity(0.15),
-                            width: 1.5,
+                            color: Colors.white.withOpacity(0.09),
+                            width: 1,
                           ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black26.withOpacity(0.1),
-                              blurRadius: 30,
-                              offset: const Offset(0, 15),
-                            ),
-                          ],
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             Text(
-                              "Application Credentials",
+                              'Application details',
                               style: GoogleFonts.outfit(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
+                                fontSize: 19,
+                                fontWeight: FontWeight.w700,
                                 color: Colors.white,
                               ),
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 4),
                             Text(
-                              "Track your application status securely",
+                              'Enter your application number and date of birth.',
                               style: GoogleFonts.outfit(
                                 fontSize: 13,
-                                color: const Color(0xFF4DB6AC),
-                                fontWeight: FontWeight.w600,
+                                color: Colors.white.withOpacity(0.62),
+                                height: 1.4,
                               ),
                             ),
-                            const SizedBox(height: 32),
+                            const SizedBox(height: 22),
                             _buildDarkTextField(
                               controller: appController,
-                              label: "Application Number",
-                              hint: "GJ/2026-27/SRC/...",
+                              label: 'Application Number',
+                              hint: 'GJ/2026-27/SRC/...',
                               icon: Icons.tag_rounded,
+                              textInputAction: TextInputAction.next,
                             ),
-                            const SizedBox(height: 20),
+                            const SizedBox(height: 16),
                             _buildDarkTextField(
                               controller: dobController,
-                              label: "Date of Birth",
+                              label: 'Date of Birth',
                               icon: Icons.calendar_today_outlined,
-                              hint: "DD-MM-YYYY",
+                              hint: 'DD-MM-YYYY',
                               keyboardType: TextInputType.datetime,
                               inputFormatters: [DateInputFormatter()],
+                              textInputAction: TextInputAction.done,
+                              onSubmitted: (_) {
+                                if (!loading) fetchStatus();
+                              },
                             ),
-                            const SizedBox(height: 40),
-                            if (loading)
-                              const Center(
-                                child: Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 12),
-                                  child: CircularProgressIndicator(
-                                    color: Color(0xFF4DB6AC),
-                                    strokeWidth: 3,
-                                  ),
-                                ),
-                              )
-                            else
-                              SizedBox(
-                                height: 60,
-                                child: ElevatedButton(
-                                  onPressed: fetchStatus,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF00796B),
-                                    foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    elevation: 0,
-                                  ),
-                                  child: Text(
-                                    "Check Status",
-                                    style: GoogleFonts.outfit(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                                ),
-                              ),
                             if (errorMessage != null) ...[
-                              const SizedBox(height: 20),
+                              const SizedBox(height: 16),
                               Container(
-                                padding: const EdgeInsets.all(16),
+                                padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: Colors.red.withOpacity(0.08),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: Colors.redAccent.withOpacity(0.2)),
-                                ),
-                                child: Text(
-                                  errorMessage!,
-                                  textAlign: TextAlign.center,
-                                  style: GoogleFonts.outfit(
-                                    color: Colors.redAccent.withOpacity(0.9),
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
+                                  color: const Color(0xFFFF6B6B).withOpacity(0.09),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: const Color(0xFFFF6B6B).withOpacity(0.25),
                                   ),
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Icon(
+                                      Icons.error_outline_rounded,
+                                      color: Color(0xFFFF8A80),
+                                      size: 19,
+                                    ),
+                                    const SizedBox(width: 9),
+                                    Expanded(
+                                      child: Text(
+                                        errorMessage!,
+                                        style: GoogleFonts.outfit(
+                                          color: const Color(0xFFFFB4AB),
+                                          fontSize: 13,
+                                          height: 1.4,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
+                            const SizedBox(height: 20),
+                            SizedBox(
+                              height: 50,
+                              child: ElevatedButton(
+                                onPressed: loading ? null : fetchStatus,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: accent,
+                                  foregroundColor: const Color(0xFF082923),
+                                  disabledBackgroundColor:
+                                  accent.withOpacity(0.45),
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(13),
+                                  ),
+                                ),
+                                child: loading
+                                    ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.2,
+                                    color: Color(0xFF082923),
+                                  ),
+                                )
+                                    : Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.search_rounded, size: 20),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Check Status',
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),
-                      
-                      const SizedBox(height: 40),
-                      
-                      // Subtle Info Panel
-                      Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.03),
-                          borderRadius: BorderRadius.circular(28),
-                          border: Border.all(color: Colors.white.withOpacity(0.05)),
-                        ),
-                        child: Column(
+                      const SizedBox(height: 18),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(Icons.info_outline_rounded, color: Colors.white12, size: 24),
-                            const SizedBox(height: 16),
-                            Text(
-                              "આ એપ્લિકેશન ફક્ત અરજીની સ્થિતિ તપાસવાના હેતુ માટે જ છે, અન્ય કોઈપણ હેતુ માટે ઉપયોગમાં લેવામાં આવી નથી.",
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.notoSansGujarati(
-                                fontSize: 13,
-                                color: Colors.white.withOpacity(0.4),
-                                height: 1.6,
+                            Icon(
+                              Icons.info_outline_rounded,
+                              color: Colors.white.withOpacity(0.55),
+                              size: 18,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'આ એપ્લિકેશન ફક્ત અરજીની સ્થિતિ તપાસવાના હેતુ માટે જ છે, અન્ય કોઈપણ હેતુ માટે ઉપયોગમાં લેવામાં આવી નથી.',
+                                style: GoogleFonts.notoSansGujarati(
+                                  fontSize: 12,
+                                  color: Colors.white.withOpacity(0.62),
+                                  height: 1.55,
+                                ),
                               ),
                             ),
                           ],
@@ -477,7 +521,7 @@ class _RteStatusScreenState extends State<RteStatusScreen> {
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -489,16 +533,20 @@ class _RteStatusScreenState extends State<RteStatusScreen> {
     String? hint,
     TextInputType? keyboardType,
     List<TextInputFormatter>? inputFormatters,
+    TextInputAction? textInputAction,
+    ValueChanged<String>? onSubmitted,
   }) {
+    const accent = Color(0xFF4DB6AC);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          padding: const EdgeInsets.only(left: 2, bottom: 7),
           child: Text(
             label,
             style: GoogleFonts.outfit(
-              color: Colors.white.withOpacity(0.5),
+              color: Colors.white.withOpacity(0.78),
               fontSize: 13,
               fontWeight: FontWeight.w600,
             ),
@@ -508,29 +556,52 @@ class _RteStatusScreenState extends State<RteStatusScreen> {
           controller: controller,
           keyboardType: keyboardType,
           inputFormatters: inputFormatters,
-          style: const TextStyle(color: Colors.white, fontSize: 15),
+          textInputAction: textInputAction,
+          onSubmitted: onSubmitted,
+          style: GoogleFonts.outfit(
+            color: Colors.white,
+            fontSize: 15,
+          ),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: TextStyle(color: Colors.white.withOpacity(0.2)),
-            prefixIcon: Icon(icon, color: const Color(0xFF4DB6AC).withOpacity(0.5), size: 18),
+            hintStyle: GoogleFonts.outfit(
+              color: Colors.white.withOpacity(0.4),
+              fontSize: 13,
+            ),
+            prefixIcon: Icon(
+              icon,
+              color: accent,
+              size: 20,
+            ),
             filled: true,
-            fillColor: Colors.black.withOpacity(0.2),
+            fillColor: const Color(0xFF102F2B),
+            contentPadding: const EdgeInsets.symmetric(
+              vertical: 15,
+              horizontal: 14,
+            ),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(18),
-              borderSide: BorderSide.none,
+              borderRadius: BorderRadius.circular(13),
+              borderSide: BorderSide(
+                color: Colors.white.withOpacity(0.09),
+              ),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(18),
-              borderSide: BorderSide(color: Colors.white.withOpacity(0.05)),
+              borderRadius: BorderRadius.circular(13),
+              borderSide: BorderSide(
+                color: Colors.white.withOpacity(0.09),
+              ),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(18),
-              borderSide: const BorderSide(color: Color(0xFF4DB6AC), width: 1.5),
+              borderRadius: BorderRadius.circular(13),
+              borderSide: const BorderSide(
+                color: accent,
+                width: 1.3,
+              ),
             ),
-            contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
           ),
         ),
       ],
     );
   }
+
 }
