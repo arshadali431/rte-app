@@ -1,0 +1,12 @@
+# Dependencies
+node_modules/
+
+# Local configuration / credentials — never commit
+.env
+.env.*
+!.env.example
+service-account*.json
+
+# Local data exports and logs
+*.csv
+*.log

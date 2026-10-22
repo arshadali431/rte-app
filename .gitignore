@@ -18,10 +18,8 @@ migrate_working_dir/
 *.iws
 .idea/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
+# Editors / OS
+.vscode/
 
 # Flutter/Dart/Pub related
 **/doc/api/
@@ -45,5 +43,24 @@ app.*.map.json
 /android/app/release
 
 # Firebase Functions
-functions/service-account.json
 functions/node_modules/
+
+# ── Credentials: never commit secrets ────────────────────────────────────────
+# See CREDENTIALS.md. Real values live in Secret Manager / key.properties /
+# the local environment, never in tracked files.
+.env
+.env.*
+!.env.example
+**/service-account*.json
+**/key.properties
+*.jks
+*.keystore
+*.p12
+.runtimeconfig.json
+
+# Dependencies (functions/, import_data/, any future tool)
+**/node_modules/
+
+# Stale local artefacts (untracked after repo hygiene; kept on disk only)
+/analysis_output.txt
+/flutter_01.png
