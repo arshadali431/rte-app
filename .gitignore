@@ -61,6 +61,11 @@ functions/node_modules/
 # Dependencies (functions/, import_data/, any future tool)
 **/node_modules/
 
+# Android/Gradle build output (never commit)
+/android/build/
+/android/.gradle/
+/android/.kotlin/
+
 # Stale local artefacts (untracked after repo hygiene; kept on disk only)
 /analysis_output.txt
 /flutter_01.png
