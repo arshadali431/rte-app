@@ -8,6 +8,7 @@ import '../../services/firestore_service.dart';
 import '../../models/token_model.dart';
 import '../../core/maintenance_mixin.dart';
 import '../../widgets/no_internet_banner.dart';
+import '../../widgets/privacy_policy_link.dart';
 
 class ParentDashboardScreen extends StatefulWidget {
   const ParentDashboardScreen({super.key});
@@ -118,14 +119,16 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen>
     if (_token == null) return;
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
+      builder: (sheetContext) => SafeArea(
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
@@ -168,7 +171,9 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen>
                   fontSize: 16,
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 20),
+              PrivacyPolicyLink(language: 'en'),
+              const SizedBox(height: 10),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
@@ -216,8 +221,32 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen>
                   ),
                 ),
               ),
+              const SizedBox(height: 8),
+              Divider(color: Colors.grey[200]),
+              const SizedBox(height: 4),
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.pop(sheetContext);
+                  if (mounted) context.push('/parent/delete-data');
+                },
+                icon: Icon(
+                  Icons.delete_forever_rounded,
+                  color: Colors.red[400],
+                  size: 19,
+                ),
+                label: Text(
+                  'Delete my data',
+                  style: GoogleFonts.outfit(
+                    color: Colors.red[400],
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
             ],
           ),
+        ),
         ),
       ),
     );

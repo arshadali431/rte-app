@@ -9,6 +9,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../core/permission_handler.dart';
 import '../../core/maintenance_mixin.dart';
 import '../../widgets/no_internet_banner.dart';
+import '../../widgets/privacy_policy_link.dart';
 
 class TokenEntryScreen extends StatefulWidget {
   const TokenEntryScreen({super.key});
@@ -434,7 +435,15 @@ class _TokenEntryScreenState extends State<TokenEntryScreen>
                               ],
                             ),
                           ),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 10),
+                          Center(
+                            child: PrivacyPolicyLink(
+                              language: 'en',
+                              color: accent.withValues(alpha: 0.8),
+                              dense: true,
+                            ),
+                          ),
+                          const SizedBox(height: 14),
                           SizedBox(
                             width: double.infinity,
                             height: 52,

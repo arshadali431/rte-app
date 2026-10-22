@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../services/auth_service.dart';
 import '../../core/maintenance_mixin.dart';
 import '../../widgets/no_internet_banner.dart';
+import '../../widgets/privacy_policy_link.dart';
 
 class OfficeLoginScreen extends StatefulWidget {
   const OfficeLoginScreen({super.key});
@@ -361,7 +362,15 @@ class _OfficeLoginScreenState extends State<OfficeLoginScreen>
                                         ),
                                       ),
                                     ),
-                                    const SizedBox(height: 20),
+                                    const SizedBox(height: 14),
+                                    Center(
+                                      child: PrivacyPolicyLink(
+                                        language: 'en',
+                                        color: _accent.withValues(alpha: 0.85),
+                                        dense: true,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
                                     Row(
                                       mainAxisAlignment: MainAxisAlignment.center,
                                       children: [
