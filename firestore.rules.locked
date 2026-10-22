@@ -1,0 +1,27 @@
+rules_version = '2';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DRAFT — deny-all Firestore rules. NOT DEPLOYED.
+//
+// The committed firestore.rules is still `allow read, write: if true` (open).
+// This draft is the deny-by-default baseline to deploy only after an
+// authentication model exists (Firebase Auth + custom claims for staff, a
+// signed per-token credential for parents — see PROJECT_AUDIT.md P0-2/P0-3).
+//
+// If deployed as-is, the ENTIRE app stops working: every screen reads/writes
+// Firestore through the client SDK with no authenticated identity, so all
+// reads and writes will be rejected. See the deployment impact list in
+// PROJECT_AUDIT.md before switching.
+//
+// firebase.json currently has no `firestore` deploy target, so remember to add
+//   "firestore": { "rules": "firestore.rules", "indexes": "firestore.indexes.json" }
+// before `firebase deploy --only firestore:rules` will do anything.
+// ─────────────────────────────────────────────────────────────────────────────
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
