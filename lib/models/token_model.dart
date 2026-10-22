@@ -17,6 +17,11 @@ class TokenModel {
   final String? govParentMobile; // Primary mobile number from govt portal
   final DateTime? lastSyncAt;
 
+  /// True while the parent's self-service deletion request is pending.
+  /// Office lists/searches/counters hide these tokens and the office token
+  /// detail shows only a neutral "Deletion requested" state.
+  final bool deletionPending;
+
   TokenModel({
     required this.id,
     required this.tokenNumber,
@@ -33,6 +38,7 @@ class TokenModel {
     this.govChildName,
     this.govParentMobile,
     this.lastSyncAt,
+    this.deletionPending = false,
   });
 
   factory TokenModel.fromFirestore(Map<String, dynamic> data, String id) {
@@ -56,6 +62,7 @@ class TokenModel {
       govChildName: data['govChildName'],
       govParentMobile: data['govParentMobile'],
       lastSyncAt: (data['lastSyncAt'] as Timestamp?)?.toDate(),
+      deletionPending: data['deletionPending'] == true,
     );
   }
 
@@ -77,6 +84,7 @@ class TokenModel {
       'govChildName': govChildName,
       'govParentMobile': govParentMobile,
       'lastSyncAt': lastSyncAt != null ? Timestamp.fromDate(lastSyncAt!) : null,
+      'deletionPending': deletionPending,
     };
   }
 }
