@@ -1,146 +1,139 @@
 # RTE Token Manager & Status Hub 🇮🇳
 
-A high-performance, enterprise-grade Flutter application designed to streamline the **Right to Education (RTE)** admission and tracking process. This dual-purpose platform serves both parents and administrative office staff with a secure, real-time data ecosystem.
+A Flutter + Firebase application that helps an office issue and track **Right to Education
+(RTE)** application tokens, lets parents view their application status and upload documents,
+and mirrors uploaded documents to Google Drive through a Cloud Function.
+
+> ## ⚠️ Read this before using the app with real families
+>
+> This codebase is a feature-rich **prototype that is not yet safe for production**:
+> - Firestore and Storage security rules are currently wide open
+>   (`allow read, write: if true`) — see `firestore.rules` / `storage.rules` and the
+>   deny-all drafts `firestore.rules.locked` / `storage.rules.locked`.
+> - There is **no server-side authentication** yet. Office login is a client-side check and
+>   the parent portal identifier is a sequential token number.
+> - TLS certificate validation is disabled globally in the app (`lib/main.dart`) — a P0
+>   finding that is **not** part of this secrets cleanup and is still open.
+>
+> `PROJECT_AUDIT.md` contains the full audit, `CREDENTIALS.md` the credential/handover
+> register. **Do not process real applicant or Aadhaar data until the P0 findings are fixed.**
 
 ---
 
-## 🌟 Core Modules
+## Core modules
 
-### 1. Unified Office Dashboard (Staff Side)
-A secure administrative control center for managing the end-to-end mission process.
-- **Biometric-inspired Authentication**: Firestore-backed login system with brute-force protection (3-attempt lockout).
-- **Token Lifecycle Management**: Generate and manage unique application tokens for new families.
-- **Smart Government Hub**: Direct integration with the formal RTE portal for instant status verification.
-- **Intelligent Audit Logs**: Local search history with timestamps and one-tap autofill for high-speed administrative oversight.
-- **QR Operations**: Integrated scanner for verifying parent application tokens at the physical office.
+### 1. Office dashboard (staff)
+- Token lifecycle: transactional token-number allocation, parent details, application id/DOB.
+- Government status hub: fetches the RTE Gujarat application status from the official portal.
+- Search and audit history: token number, application id, mobile, name, and recent activity.
+- Document vault: upload/view required documents, including a guided Aadhaar front/back
+  capture → crop → merge → preview → upload flow.
+- QR operations: render a token QR for parents and scan it at the office desk.
+- Bulk status sync: chunked, cursor-paginated sync with a staff-facing password prompt
+  (client-side, legacy — to be replaced by server-side authorisation).
 
-### 2. Parent Interactive Portal (Parent Side)
-A mobile-first experience for parents to stay connected with their application's progress.
-- **Secure Token Access**: Instant entry via unique tokens or QR code scanning.
-- **Document Management**: Centralized hub for uploading and viewing application-required documents.
-- **Live Status Feed**: Real-time progress tracking from submission to final approval.
-- **Child Profile Hub**: Comprehensive management of student details and metadata.
+### 2. Parent portal
+- Token access by scanning the QR printed by the office (no manual token entry yet).
+- Live application status and document list from Firestore.
+- Document upload with camera/gallery, crop, compression and permission handling.
+- Child profile management (name, DOB, Aadhaar number, school preferences).
 
-### 3. Automated Document Mirroring (Cloud Infrastructure)
-A high-efficiency background system that ensures all physical documents are redundant and easily accessible via Google Drive.
-- **Real-time Sync**: Automated trigger via Firebase Cloud Functions whenever a file is finalized in Storage.
-- **Enterprise-ready Quota**: Integrated **OAuth 2.0 (Refresh Token)** flow to leverage your **5TB Google Drive storage**, bypassing the limitations of standard service accounts.
-- **Smart Organization**: Automatically categorizes documents into specific sub-folders based on Application Tokens (e.g., `Token_104`, `Token_105`).
-- **Conflict Management**: Intelligent logic to detect existing files and perform atomic updates or creations as needed.
-
----
-
-## 🚀 Key Features
-
-- **Enterprise Security**: Implemented persistent sessions and role-based access control.
-- **Advanced Data Retrieval**: Proprietary government portal bridge for automated verification (RequestVerificationToken handling).
-- **Premium Aesthetics**: Dark-teal professional theme with glassmorphism, responsive animations, and Google Fonts typography.
-- **Real-time Persistence**: Full Google Firebase (Firestore & Storage) integration for live cross-device data syncing.
-- **Efficient Workflow**: Automatic form resets, keyboard management, and local caching for optimized staff productivity.
+### 3. Document mirroring (Cloud Function)
+- Firestore/Storage `onFinalize` trigger copies each `tokens/<id>/<file>` object to a
+  Google Drive folder named `Token_<id>`.
+- OAuth2 credentials are read from **Google Cloud Secret Manager** via
+  `firebase-functions/params` (`defineSecret`) — never from source code.
+  See `CREDENTIALS.md`.
 
 ---
 
-## 🛠 Technical Architecture
+## Technical architecture
 
-- **Engine**: Flutter (Dart)
-- **Database**: Cloud Firestore (Real-time NoSQL)
-- **File Storage**: Firebase Storage & Google Drive (Bi-cloud redundancy)
-- **Backend Logic**: Firebase Cloud Functions (Node.js 20)
-- **Authentication**: Firebase Auth & OAuth 2.0 (Google Workspace integration)
-- **Networking**: Dio (Advanced HTTP client with interceptors)
-- **Navigation**: GoRouter (Declarative routing system)
+- **App**: Flutter (Dart 3), GoRouter navigation, Provider for two app-wide flags.
+- **Data**: Cloud Firestore (tokens, children, documents, meta, admin config).
+- **Files**: Firebase Storage, mirrored to Google Drive by the Cloud Function.
+- **Backend logic**: Firebase Cloud Functions (Node.js 20, `firebase-functions` v5).
+- **Auth**: *not implemented server-side.* The app has no Firebase Auth dependency; office
+  sessions are a local flag and parents are identified by a token id. This is the largest
+  open item in `PROJECT_AUDIT.md`.
+- **Networking**: Dio + `html` parsing for the government portal.
+- **Secrets**: Secret Manager for the function; `android/key.properties` (git-ignored) for
+  release signing. Nothing secret is committed.
 
 ---
 
-## 🏁 Installation & Development
+## Installation & development
 
-1. **Clone the Repository**
+1. **Clone**
    ```bash
    git clone https://github.com/bhoraniaarshadali/rte-app.git
+   cd rte-app
    ```
 
-2. **Configure Firebase**
-   - Ensure `google-services.json` is correctly placed in `android/app/`.
+2. **Firebase client config**
+   - Place `google-services.json` in `android/app/` and keep `lib/firebase_options.dart`
+     in sync with your Firebase project (both are public client identifiers, not secrets).
 
-3. **Cloud Functions Setup**
-   - Navigate to `/functions`
-   - Install dependencies: `npm install`
-   - Setup OAuth credentials in `index.js`
-   - Deploy: `firebase deploy --only functions`
-
-4. **Launch Application**
+3. **Cloud Functions**
    ```bash
+   cd functions
+   npm install
+   cd ..
+   ```
+   Create the function secrets (the CLI prompts for values, they are never committed):
+   ```bash
+   firebase functions:secrets:set GOOGLE_OAUTH_CLIENT_ID
+   firebase functions:secrets:set GOOGLE_OAUTH_CLIENT_SECRET
+   firebase functions:secrets:set GOOGLE_DRIVE_REFRESH_TOKEN
+   firebase functions:secrets:set DRIVE_ROOT_FOLDER_ID
+   firebase deploy --only functions
+   ```
+   See `CREDENTIALS.md` for how to obtain these values and the rotation procedure.
+
+4. **Run the app**
+   ```bash
+   flutter pub get
    flutter run
    ```
 
----
-
-## 📅 Major Update: Aadhaar Workflow & UI Hardening
-
-### 🚀 High-Performance Aadhaar Overhaul
-Implemented a mission-critical, high-performance Aadhaar document management system:
-- **Clean Flow Architecture**: Forced guided workflow: **Capture Front ➔ Crop ➔ Capture Back ➔ Crop ➔ Background Merge ➔ Full-Screen Preview ➔ Final Upload**.
-- **Background Image Merging**: Heavy image processing (decoding/merging) offloaded to background isolates using `compute()` to ensure 60fps UI performance.
-- **Intelligent Memory Protection**: Automated resolution management that resizes high-res captures (max 1000px height) before merging to prevent **Out-of-Memory (OOM)** crashes on budget devices while maintaining text legibility.
-- **Full-Screen Interactive Preview**: A new dedicated preview screen with **Pinch-to-Zoom** and interactive verification steps before final submission.
-
-### 🎨 Premium UI/UX Enhancements
-- **Modern Processing Overlays**: Redesigned the "Wait for Processing" UI with a semi-transparent blur, centered premium white-cards, and smooth circular loaders (replacing basic system loaders).
-- **Legibility Updates**: Unified all system **SnackBars** to use high-contrast white text styles for instant readability on both success (green) and error (red) states.
-- **Smarter Government Status**: refined the portal feedback system—"No status information found" is now treated as a neutral grey state with a clear "DATA NOT FOUND" label, improving user perception.
-
-### 📋 Document Management Expansion
-- **Extended Mandatory Set**: Now requires **7 core documents**, including the newly added `Child Aadhaar Card` and `Parent Signature`.
-- **Dynamic Doc Vault**: Added support for up to **3 additional custom documents** (e.g., Caste Certificate) with unique naming and dedicated storage paths.
+5. **Secret scanning + git hooks (recommended for every clone)**
+   ```bash
+   git config core.hooksPath .githooks    # pre-commit gitleaks scan (if gitleaks is installed)
+   ```
+   A GitHub Actions workflow (`.github/workflows/secret-scan.yml`) scans pushes/PRs.
+   Never commit `.env`, `key.properties`, keystore files or service-account keys — the root,
+   `functions/` and `import_data/` ignore files cover them.
 
 ---
 
-## 🔌 Plug & Play: Migration & Deployment Guide
+## Google Cloud / Drive setup (for the mirror function)
 
-This section outlines how to migrate the entire system (App + Firebase + Google Drive Sync) to a completely new account or environment.
+1. Create/select the Firebase project and enable the **Google Drive API** in Google Cloud.
+2. OAuth consent screen: add only **`.../auth/drive.file`** (least privilege). Do **not** request
+   full `.../auth/drive`; anything wider exposes the whole Drive if the token leaks.
+3. Create an OAuth 2.0 Client (type: Web application) and obtain a refresh token through the
+   OAuth playground or your own script. Store the values only in Secret Manager.
+4. Create a Drive folder for the mirror and store its id as `DRIVE_ROOT_FOLDER_ID`.
 
-### 1. Firebase Project Setup (The Foundation)
-1.  Create a new project on the [Firebase Console](https://console.firebase.google.com/).
-2.  Enable **Firestore Database** in test mode initially, then update rules.
-3.  Enable **Firebase Storage**.
-4.  Activate **Google Authentication** (optional) or ensure email/pass is enabled if needed.
-5.  **Android App**: Register your app with package name `com.example.rte_status_checker`.
-6.  **Google-Services**: Download the new `google-services.json` and replace the one in `android/app/`.
+## Database initialization
 
-### 2. Google Cloud & Drive API (The Sync Hub)
-To sync files to a new Google Drive:
-1.  Go to [Google Cloud Console](https://console.cloud.google.com/).
-2.  Select your Firebase project.
-3.  **Enable APIs**: Enable the **Google Drive API**.
-4.  **OAuth Consent Screen**:
-    - Select "External".
-    - Add `.../auth/drive.file` and `.../auth/drive` scopes.
-    - Add your email as a **Test User** (Crucial: OAuth won't work without this in testing).
-5.  **Credentials**: 
-    - Create an **OAuth 2.0 Client ID** (Type: Web Application).
-    - Note down your **Client ID** and **Client Secret**.
-6.  **Refresh Token**: Use an OAuth playground or a script to authorize your account and get the **Refresh Token**.
+- `tokens`: token documents, id = token number.
+- `meta/token_counter`: `{ "lastTokenNumber": <n> }` — the next token is `n + 1`.
+- `rte-2026-27/admin`: legacy admin/maintenance document (currently holds plaintext
+  credentials — must be migrated to hashed credentials + Firebase Auth; see the audit).
 
-### 3. Cloud Functions (The Engine)
-1.  Navigate to the `/functions` folder in the project.
-2.  Open `index.js` and update these constants with your new credentials:
-    ```javascript
-    const CLIENT_ID = 'YOUR_NEW_CLIENT_ID';
-    const CLIENT_SECRET = 'YOUR_NEW_CLIENT_SECRET';
-    const REFRESH_TOKEN = 'YOUR_NEW_REFRESH_TOKEN';
-    const DRIVE_FOLDER_ID = 'YOUR_TARGET_GOOGLE_DRIVE_FOLDER_ID';
-    ```
-3.  **Deploy**: Run `firebase use <new-project-id>` followed by `firebase deploy --only functions`.
+## Known limitations (see `PROJECT_AUDIT.md` for the full list)
 
-### 4. Database Initialization
-Ensure the following collections exist or are initialized via first use:
-- `tokens`: Primary token store.
-- `meta`: Store `token_counter` doc with `{ "current": 100 }` to start token numbering.
-
-### 5. Final Build
-- Run `flutter clean` ➔ `flutter pub get`.
-- Build the APK or run the app. It will now point to the new Firebase project and sync documents to the new Google Drive account.
+- No Firebase Auth / RBAC; open Firestore and Storage rules.
+- Parent portal has no manual token entry fallback.
+- iOS Firebase configuration is not wired into the Xcode target.
+- Release builds use the debug keystore unless `android/key.properties` exists.
+- `com.example.*` application ids must be changed before store submission.
+- `google_fonts/` asset directory is referenced by `pubspec.yaml` but is empty (fonts are
+  fetched at runtime); a clean clone may need that entry fixed before building.
+- The only test is the default Flutter counter template (no real coverage).
 
 ---
 
-*Engineered with precision by [Arshadalibhorania](https://github.com/bhoraniaarshadali)*
+*Engineered by [Arshadalibhorania](https://github.com/bhoraniaarshadali), hardened after the
+2026-10-22 security audit.*
