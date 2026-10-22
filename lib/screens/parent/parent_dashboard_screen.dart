@@ -21,6 +21,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen>
   TokenModel? _token;
   bool _isLoading = true;
   String? _error;
+  bool _sessionMissing = false;
 
   @override
   void initState() {
@@ -42,64 +43,73 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen>
     setState(() {
       _isLoading = true;
       _error = null;
+      _sessionMissing = false;
     });
 
     try {
-      final state = GoRouterState.of(context);
-      String? tokenId = state.extra as String?;
+      final extra = GoRouterState.of(context).extra;
+      String? tokenId = extra is String ? extra : null;
+
+      // Also tolerate a map-shaped route extra in case another entry point uses it.
+      if ((tokenId == null || tokenId.isEmpty) && extra is Map) {
+        final extraTokenId = extra['tokenId'];
+        if (extraTokenId is String) tokenId = extraTokenId;
+      }
 
       if (tokenId == null || tokenId.isEmpty) {
         final prefs = await SharedPreferences.getInstance();
         tokenId = prefs.getString('token_id');
       }
 
-      if (tokenId != null && tokenId.isNotEmpty) {
-        final token = await FirestoreService().getTokenById(tokenId);
+      if (tokenId == null || tokenId.isEmpty) {
         if (mounted) {
-          if (token == null) {
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.remove('token_id');
-            await prefs.remove('token_number');
-
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Session expired or token invalid. Please regenerate token.',
-                    style: GoogleFonts.outfit(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  backgroundColor: Colors.redAccent,
-                  behavior: SnackBarBehavior.floating,
-                  margin: const EdgeInsets.all(24),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              );
-              context.go('/role');
-            }
-            return;
-          }
           setState(() {
-            _token = token;
             _isLoading = false;
+            _token = null;
+            _sessionMissing = true;
+            _error = 'No saved application was found. Scan your token QR code to continue.';
           });
         }
-      } else {
-        if (mounted) context.go('/role');
+        return;
       }
-    } catch (e) {
+
+      debugPrint('Parent dashboard: loading token $tokenId');
+      final token = await FirestoreService()
+          .getTokenById(tokenId)
+          .timeout(const Duration(seconds: 15));
+      debugPrint('Parent dashboard: token load completed (${token != null})');
+      if (!mounted) return;
+
+      if (token == null) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('token_id');
+        await prefs.remove('token_number');
+
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _token = null;
+            _sessionMissing = true;
+            _error = 'Your saved application could not be found. Scan your token QR code again.';
+          });
+        }
+        return;
+      }
+
+      setState(() {
+        _token = token;
+        _isLoading = false;
+        _sessionMissing = false;
+        _error = null;
+      });
+    } catch (e, stackTrace) {
+      debugPrint('Parent dashboard load failed: $e\n$stackTrace');
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _error = "Failed to load dashboard data.";
+          _error = 'Failed to load dashboard data. Check your connection and try again.';
+          _sessionMissing = false;
         });
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
       }
     }
   }
@@ -265,130 +275,253 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen>
 
   @override
   Widget build(BuildContext context) {
+    const primary = Color(0xFF087C6B);
+    const pageBackground = Color(0xFFF5F8F7);
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
-        // do nothing
+        // Parent dashboard is the root of this navigation flow.
       },
       child: Scaffold(
-        backgroundColor: Colors.grey[50],
+        backgroundColor: pageBackground,
         appBar: AppBar(
           title: Text(
             'My Application',
-            style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+            style: GoogleFonts.outfit(
+              color: const Color(0xFF173B35),
+              fontWeight: FontWeight.w700,
+              fontSize: 20,
+            ),
           ),
           backgroundColor: Colors.white,
-          foregroundColor: Colors.black,
+          foregroundColor: const Color(0xFF173B35),
           elevation: 0,
+          scrolledUnderElevation: 0,
           actions: [
             IconButton(
+              tooltip: 'My profile',
               onPressed: _showProfile,
-              icon: const Icon(Icons.person_rounded),
+              icon: const Icon(Icons.person_outline_rounded),
+            ),
+            const SizedBox(width: 4),
+          ],
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(1),
+            child: Container(height: 1, color: const Color(0xFFE8EFED)),
+          ),
+        ),
+        body: Stack(
+          children: [
+            // The main content fills the body independently of the network banner.
+            Positioned.fill(child: _buildDashboardBody()),
+            const Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: NoInternetBanner(),
             ),
           ],
         ),
-        body: Column(
-          children: [
-            const NoInternetBanner(),
-            Expanded(
-              child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(color: Color(0xFF00796B)),
-                    )
-            : _error != null
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.error_outline_rounded,
-                          size: 64,
-                          color: Colors.redAccent,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          _error!,
-                          style: GoogleFonts.outfit(
-                            fontSize: 16,
-                            color: Colors.grey[700],
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        ElevatedButton(
-                          onPressed: _loadToken,
-                          child: const Text('Retry'),
-                        ),
-                      ],
-                    ),
-                  )
-                : RefreshIndicator(
-                    onRefresh: _loadToken,
-                    color: const Color(0xFF00796B),
-                    child: SingleChildScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildWelcomeCard(),
-                          const SizedBox(height: 32),
-                          Text(
-                            'QUICK ACTIONS',
-                            style: GoogleFonts.outfit(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey[600],
-                              letterSpacing: 1.5,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildMenuCard(
-                                  icon: Icons.child_care_rounded,
-                                  title: 'Child Profile',
-                                  onTap: () => context.push(
-                                    '/parent/child-profile',
-                                    extra: _token!.id,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _buildMenuCard(
-                                  icon: Icons.assignment_turned_in_rounded,
-                                  title: 'Application Status',
-                                  subtitle: _token!.applicationId != null
-                                      ? 'Application ID received!'
-                                      : _token!.status.toUpperCase().replaceAll(
-                                          '_',
-                                          ' ',
-                                        ),
-                                  subtitleColor: _token!.applicationId != null
-                                      ? Colors.green
-                                      : _getStatusColor(_token!.status),
-                                  showBadge: _token!.applicationId != null,
-                                  onTap: () => context.push(
-                                    '/parent/status',
-                                    extra: _token!.id,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          _buildMenuCardWide(
-                            icon: Icons.upload_file_rounded,
-                            title: 'Upload Documents',
-                            subtitle: 'Crops, compress and upload vault',
-                            onTap: () =>
-                                context.push('/parent/documents', extra: _token!.id),
-                          ),
-                        ],
-                      ),
-                    ),
+      ),
+    );
+  }
+
+  Widget _buildDashboardBody() {
+    const primary = Color(0xFF087C6B);
+
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: primary),
+      );
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFCEBEC),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: const Icon(
+                  Icons.cloud_off_outlined,
+                  size: 30,
+                  color: Color(0xFFB83A46),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.outfit(
+                  fontSize: 15,
+                  color: const Color(0xFF425650),
+                ),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: _sessionMissing
+                    ? () => context.go('/role')
+                    : _loadToken,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primary,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
                   ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Text(
+                  _sessionMissing ? 'Return to role selection' : 'Try again',
+                  style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_token == null) return _buildMissingTokenState();
+
+    return RefreshIndicator(
+      onRefresh: _loadToken,
+      color: primary,
+      backgroundColor: Colors.white,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+        children: [
+          _buildWelcomeCard(),
+          const SizedBox(height: 28),
+          Text(
+            'QUICK ACTIONS',
+            style: GoogleFonts.outfit(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF637771),
+              letterSpacing: 1.3,
+            ),
+          ),
+          const SizedBox(height: 12),
+          // ListView gives this Row unbounded vertical space.
+          // Do not stretch children vertically; each menu card has its own fixed height.
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _buildMenuCard(
+                  icon: Icons.child_care_rounded,
+                  title: 'Child Profile',
+                  subtitle: 'View child details',
+                  onTap: () => context.push(
+                    '/parent/child-profile',
+                    extra: _token!.id,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildMenuCard(
+                  icon: Icons.assignment_turned_in_outlined,
+                  title: 'Application Status',
+                  subtitle: _token!.applicationId != null
+                      ? 'Application ID received'
+                      : _token!.status.toUpperCase().replaceAll('_', ' '),
+                  subtitleColor: _token!.applicationId != null
+                      ? const Color(0xFF23845D)
+                      : _getStatusColor(_token!.status),
+                  showBadge: _token!.applicationId != null,
+                  onTap: () => context.push(
+                    '/parent/status',
+                    extra: _token!.id,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _buildMenuCardWide(
+            icon: Icons.upload_file_outlined,
+            title: 'Upload Documents',
+            subtitle: 'Add or manage required documents',
+            onTap: () => context.push(
+              '/parent/documents',
+              extra: _token!.id,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMissingTokenState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE0F2F1),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: const Icon(
+                Icons.qr_code_2_rounded,
+                size: 30,
+                color: Color(0xFF087C6B),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Application not available',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.outfit(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF173B35),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Return to role selection and scan your token QR code to open your dashboard.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.outfit(
+                fontSize: 14,
+                height: 1.45,
+                color: const Color(0xFF637771),
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () => context.go('/role'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF087C6B),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: Text(
+                'Return to role selection',
+                style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
+              ),
             ),
           ],
         ),
@@ -399,109 +532,157 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen>
   Widget _buildWelcomeCard() {
     if (_token == null) return const SizedBox.shrink();
 
+    const deepTeal = Color(0xFF0B5549);
+    const textSecondary = Color(0xFFD8EEE8);
+    final firstName = _token!.parentName.trim().split(RegExp(r'\s+')).first;
+
     return Container(
       width: double.infinity,
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF00796B), Color(0xFF004D40)],
+          colors: [Color(0xFF087C6B), deepTeal],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF00796B).withOpacity(0.3),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(20),
       ),
-      child: Stack(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Hello, ${_token!.parentName.split(' ')[0]}!',
-                  style: GoogleFonts.outfit(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Welcome back,',
+                      style: GoogleFonts.outfit(
+                        fontSize: 13,
+                        color: textSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '$firstName!',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.outfit(
+                        fontSize: 25,
+                        height: 1.15,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Token #${_token!.tokenNumber}',
+                      style: GoogleFonts.outfit(
+                        fontSize: 14,
+                        color: textSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Token #${_token!.tokenNumber}',
-                  style: GoogleFonts.outfit(
-                    fontSize: 16,
-                    color: Colors.white.withOpacity(0.8),
-                  ),
-                ),
-                if (_token!.applicationId != null) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    _token!.applicationId!,
-                    style: GoogleFonts.outfit(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+              ),
+              const SizedBox(width: 12),
+              Material(
+                color: Colors.white.withOpacity(0.13),
+                borderRadius: BorderRadius.circular(12),
+                child: InkWell(
+                  onTap: _showQrCode,
+                  borderRadius: BorderRadius.circular(12),
+                  child: const SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: Icon(
+                      Icons.qr_code_rounded,
                       color: Colors.white,
-                      letterSpacing: 0.5,
+                      size: 23,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (_token!.applicationId != null) ...[
+            const SizedBox(height: 18),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.only(top: 14),
+              decoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(color: Colors.white.withOpacity(0.18)),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'APPLICATION ID',
+                    style: GoogleFonts.outfit(
+                      fontSize: 10,
+                      letterSpacing: 1.1,
+                      fontWeight: FontWeight.w700,
+                      color: textSecondary,
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    'DOB: ${_token!.childDob ?? ''}',
+                  SelectableText(
+                    _token!.applicationId!,
                     style: GoogleFonts.outfit(
-                      fontSize: 14,
-                      color: Colors.white.withOpacity(0.85),
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
                     ),
                   ),
+                  if (_token!.childDob?.isNotEmpty == true) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'DOB: ${_token!.childDob}',
+                      style: GoogleFonts.outfit(
+                        fontSize: 12,
+                        color: textSecondary,
+                      ),
+                    ),
+                  ],
                 ],
-                const SizedBox(height: 20),
+              ),
+            ),
+          ],
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.13),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
+                  width: 7,
+                  height: 7,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(30),
+                    color: _getStatusColor(_token!.status),
+                    shape: BoxShape.circle,
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.circle,
-                        size: 8,
-                        color: _getStatusColor(_token!.status),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        _token!.status.toUpperCase().replaceAll('_', ' '),
-                        style: GoogleFonts.outfit(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _token!.status.toUpperCase().replaceAll('_', ' '),
+                  style: GoogleFonts.outfit(
+                    fontSize: 11,
+                    letterSpacing: 0.4,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
                   ),
                 ),
               ],
-            ),
-          ),
-          Positioned(
-            top: 10,
-            right: 10,
-            child: IconButton(
-              onPressed: _showQrCode,
-              icon: const Icon(
-                Icons.qr_code_rounded,
-                color: Colors.white,
-                size: 28,
-              ),
             ),
           ),
         ],
@@ -517,69 +698,82 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen>
     bool showBadge = false,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 140,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, size: 30, color: const Color(0xFF00796B)),
-                const SizedBox(height: 10),
-                Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.outfit(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-                if (subtitle != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.outfit(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: subtitleColor ?? Colors.grey,
+    const primary = Color(0xFF087C6B);
+
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          height: 148,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE2EBE8)),
+          ),
+          child: Stack(
+            children: [
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8F5F2),
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                      child: Icon(icon, size: 24, color: primary),
                     ),
-                  ),
-                ],
-              ],
-            ),
-            if (showBadge)
-              Positioned(
-                top: 0,
-                right: 0,
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    color: Colors.green,
-                    shape: BoxShape.circle,
-                  ),
+                    const SizedBox(height: 10),
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.outfit(
+                        fontSize: 13,
+                        height: 1.15,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF203D37),
+                      ),
+                    ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 5),
+                      Text(
+                        subtitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.outfit(
+                          fontSize: 10,
+                          height: 1.15,
+                          fontWeight: FontWeight.w600,
+                          color: subtitleColor ?? const Color(0xFF75847F),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
-          ],
+              if (showBadge)
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF2D9B69),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -591,73 +785,84 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen>
     required String subtitle,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFE0F2F1),
-                borderRadius: BorderRadius.circular(12),
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE2EBE8)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F5F2),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(
+                  icon,
+                  size: 25,
+                  color: const Color(0xFF087C6B),
+                ),
               ),
-              child: Icon(icon, size: 28, color: const Color(0xFF00796B)),
-            ),
-            const SizedBox(width: 20),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.outfit(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.outfit(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF203D37),
+                      ),
                     ),
-                  ),
-                  Text(
-                    subtitle,
-                    style: GoogleFonts.outfit(
-                      fontSize: 12,
-                      color: Colors.grey[600],
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.outfit(
+                        fontSize: 12,
+                        color: const Color(0xFF71817B),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const Icon(Icons.chevron_right_rounded, color: Colors.black26),
-          ],
+              const SizedBox(width: 8),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: Color(0xFF8A9A94),
+                size: 22,
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Color _getStatusColor(String status) {
-    switch (status) {
+    switch (status.toLowerCase()) {
       case 'pending':
-        return Colors.orange;
+        return const Color(0xFFB7791F);
       case 'in_progress':
-        return Colors.blue;
+        return const Color(0xFF2876B8);
       case 'completed':
-        return Colors.greenAccent;
+        return const Color(0xFF2D9B69);
       default:
-        return Colors.grey;
+        return const Color(0xFF7B8984);
     }
   }
 }

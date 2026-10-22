@@ -1,0 +1,74 @@
+// firestore.rules.proposed
+// -----------------------------------------------------------------------
+// DRAFT — for the consent_records collection ONLY.
+// DO NOT DEPLOY. DO NOT MODIFY firestore.rules.
+// This file is a proposal pending security review and Firebase Auth
+// integration (P0-3 in PROJECT_AUDIT.md).
+//
+// Deployment prerequisite: Firebase Auth must be live and parent sessions
+// must be backed by a real auth uid. Until then, these rules cannot be
+// enforced server-side because there is no authenticated user to verify.
+// -----------------------------------------------------------------------
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // -----------------------------------------------------------------------
+    // consent_records/{docId}
+    //
+    // Document ID format: {subjectId}_{consentVersion}
+    //
+    // Policy:
+    //   CREATE  — allowed if the authenticated uid matches the subjectId
+    //             embedded in the document being written, AND the document
+    //             does not already exist (Firestore create semantics).
+    //   READ    — allowed only by the owning uid.
+    //   UPDATE  — DENIED unconditionally. Consent records are immutable.
+    //   DELETE  — DENIED unconditionally. Consent records are immutable.
+    //
+    // TODO(auth-migration): When subjectId is migrated from token-number
+    // to Firebase Auth uid, remove the string-split logic below and compare
+    // request.auth.uid == resource.data.subjectId directly.
+    // -----------------------------------------------------------------------
+    match /consent_records/{docId} {
+
+      // Helper: extract subjectId from the document being written.
+      // Until auth is live, this rule enforces structural integrity only —
+      // it cannot verify the caller's identity. Add uid check once auth exists.
+      function incomingSubjectId() {
+        return request.resource.data.subjectId;
+      }
+
+      // CREATE: allowed only when:
+      //   1. The caller is authenticated (once auth is live).
+      //   2. The authenticated uid matches the subjectId in the payload.
+      //   3. All required fields are present with correct types.
+      //   4. scrolledToEnd is true.
+      //   5. holdDurationMs >= 5000 (5 seconds, server-enforceable lower bound).
+      allow create: if
+        request.auth != null &&
+        request.auth.uid == incomingSubjectId() &&
+        request.resource.data.keys().hasAll([
+          'subjectId', 'consent_version', 'sha256', 'text_sha256', 'language',
+          'timestamp', 'app_version', 'platform', 'scrolledToEnd', 'holdDurationMs'
+        ]) &&
+        request.resource.data.consent_version is int &&
+        request.resource.data.scrolledToEnd == true &&
+        request.resource.data.holdDurationMs is int &&
+        request.resource.data.holdDurationMs >= 5000;
+
+      // READ: owning user only.
+      allow read: if
+        request.auth != null &&
+        request.auth.uid == resource.data.subjectId;
+
+      // UPDATE and DELETE: unconditionally denied.
+      allow update, delete: if false;
+    }
+
+    // All other collections: not covered by this file.
+    // The full rules are in firestore.rules (currently wide-open — see P0-2).
+  }
+}

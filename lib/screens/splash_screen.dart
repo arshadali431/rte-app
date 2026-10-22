@@ -1,10 +1,11 @@
 import 'dart:async';
-import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+
 import '../services/firestore_service.dart';
 import '../core/app_state.dart';
 
@@ -41,17 +42,20 @@ class _SplashScreenState extends State<SplashScreen>
       curve: Curves.easeIn,
     );
 
-    _scale = Tween<double>(begin: 0.8, end: 1.0).animate(
+    _scale = Tween<double>(begin: 0.92, end: 1.0).animate(
       CurvedAnimation(
         parent: _ctrl,
-        curve: const Interval(0.0, 0.5, curve: Curves.easeOutBack),
+        curve: const Interval(0.0, 0.55, curve: Curves.easeOutCubic),
       ),
     );
 
-    _slide = Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(
+    _slide = Tween<Offset>(
+      begin: const Offset(0, 0.08),
+      end: Offset.zero,
+    ).animate(
       CurvedAnimation(
         parent: _ctrl,
-        curve: const Interval(0.4, 0.8, curve: Curves.easeOut),
+        curve: const Interval(0.25, 0.75, curve: Curves.easeOutCubic),
       ),
     );
 
@@ -59,16 +63,15 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _initApp() async {
-    // Start realtime maintenance stream — updates AppState globally
+    // Keep maintenance state updated while the splash screen is visible.
     _maintenanceStream = FirestoreService()
         .streamMaintenanceStatus()
         .listen((maintenance) {
-          if (mounted) {
-            context.read<AppState>().updateMaintenance(maintenance);
-          }
-        });
+      if (mounted) {
+        context.read<AppState>().updateMaintenance(maintenance);
+      }
+    });
 
-    // Wait for splash duration (at least 2s, but 3s for premium feel)
     await Future.delayed(const Duration(milliseconds: 3000));
     if (!mounted) return;
 
@@ -78,11 +81,9 @@ class _SplashScreenState extends State<SplashScreen>
   Future<void> _navigateToNext() async {
     if (!mounted) return;
 
-    // Read from AppState (already fetched by stream)
     final appState = context.read<AppState>();
-
     if (appState.maintenance.centralMaintenance) {
-      if (mounted) context.go('/maintenance/central');
+      context.go('/maintenance/central');
       return;
     }
 
@@ -90,12 +91,14 @@ class _SplashScreenState extends State<SplashScreen>
     final tokenId = prefs.getString('token_id');
     final isOfficeLoggedIn = prefs.getBool('is_office_logged_in') ?? false;
 
+    if (!mounted) return;
+
     if (tokenId != null && tokenId.isNotEmpty) {
-      if (mounted) context.go('/parent/dashboard', extra: tokenId);
+      context.go('/parent/dashboard', extra: tokenId);
     } else if (isOfficeLoggedIn) {
-      if (mounted) context.go('/office/dashboard');
+      context.go('/office/dashboard');
     } else {
-      if (mounted) context.go('/role');
+      context.go('/role');
     }
   }
 
@@ -108,122 +111,139 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    const accent = Color(0xFF4DB6AC);
+
     return PopScope(
       canPop: false,
       child: Scaffold(
+        backgroundColor: const Color(0xFF092C26),
         body: Container(
           width: double.infinity,
           height: double.infinity,
           decoration: const BoxDecoration(
             gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
               colors: [
-                Color(0xFF0D2B2B),
-                Color(0xFF004D40),
-                Color(0xFF00796B),
+                Color(0xFF103D35),
+                Color(0xFF092C26),
+                Color(0xFF081F20),
               ],
             ),
           ),
           child: SafeArea(
-            child: Stack(
-              children: [
-                Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      ScaleTransition(
-                        scale: _scale,
-                        child: FadeTransition(
-                          opacity: _fade,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.1),
-                                width: 2,
-                              ),
-                            ),
-                            child: Container(
-                              width: 120,
-                              height: 120,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.1),
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.2),
-                                    blurRadius: 20,
-                                    spreadRadius: 5,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return Stack(
+                  children: [
+                    Positioned.fill(
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(24, 32, 24, 76),
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minHeight: constraints.maxHeight - 108,
+                          ),
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                ScaleTransition(
+                                  scale: _scale,
+                                  child: FadeTransition(
+                                    opacity: _fade,
+                                    child: Container(
+                                      width: 104,
+                                      height: 104,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.06),
+                                        borderRadius: BorderRadius.circular(26),
+                                        border: Border.all(
+                                          color: Colors.white.withOpacity(0.10),
+                                        ),
+                                      ),
+                                      clipBehavior: Clip.antiAlias,
+                                      child: Image.asset(
+                                        'assets/app_logo.png',
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) =>
+                                        const Icon(
+                                          Icons.how_to_reg_rounded,
+                                          size: 48,
+                                          color: Colors.white70,
+                                        ),
+                                      ),
+                                    ),
                                   ),
-                                ],
-                              ),
-                              child: ClipOval(
-                                child: Image.asset(
-                                  'assets/app_logo.png',
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      const Icon(Icons.how_to_reg_rounded,
-                                          size: 60, color: Colors.white),
                                 ),
-                              ),
+                                const SizedBox(height: 30),
+                                SlideTransition(
+                                  position: _slide,
+                                  child: FadeTransition(
+                                    opacity: _fade,
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          'RTE Status Checker',
+                                          textAlign: TextAlign.center,
+                                          style: GoogleFonts.outfit(
+                                            fontSize: 30,
+                                            fontWeight: FontWeight.w700,
+                                            color: Colors.white,
+                                            letterSpacing: 0.1,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 9),
+                                        Text(
+                                          'Track Your Future Instantly',
+                                          textAlign: TextAlign.center,
+                                          style: GoogleFonts.outfit(
+                                            fontSize: 15,
+                                            color: Colors.white.withOpacity(0.68),
+                                            fontWeight: FontWeight.w400,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 22),
+                                        Container(
+                                          width: 34,
+                                          height: 3,
+                                          decoration: BoxDecoration(
+                                            color: accent.withOpacity(0.85),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ),
-                      ),
-                      const SizedBox(height: 40),
-                      SlideTransition(
-                        position: _slide,
-                        child: FadeTransition(
-                          opacity: _fade,
-                          child: Column(
-                            children: [
-                              Text(
-                                'RTE Status Checker',
-                                style: GoogleFonts.outfit(
-                                  fontSize: 32,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              Text(
-                                'Track Your Future Instantly',
-                                textAlign: TextAlign.center,
-                                style: GoogleFonts.outfit(
-                                  fontSize: 16,
-                                  color: Colors.white.withOpacity(0.6),
-                                  letterSpacing: 1.1,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 30),
-                    child: FadeTransition(
-                      opacity: _fade,
-                      child: Text(
-                        'VERSION 1.0.0',
-                        style: GoogleFonts.outfit(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white.withOpacity(0.4),
-                          letterSpacing: 2.0,
                         ),
                       ),
                     ),
-                  ),
-                ),
-              ],
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 18),
+                        child: FadeTransition(
+                          opacity: _fade,
+                          child: Text(
+                            'VERSION 1.0.0',
+                            style: GoogleFonts.outfit(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white.withOpacity(0.42),
+                              letterSpacing: 1.6,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ),

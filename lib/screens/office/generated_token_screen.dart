@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'dart:io';
@@ -31,7 +31,8 @@ class _GeneratedTokenScreenState extends State<GeneratedTokenScreen> {
   Future<void> _captureAndSave() async {
     setState(() => _isSaving = true);
     try {
-      final boundary = _globalKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      final boundary = _globalKey.currentContext?.findRenderObject()
+      as RenderRepaintBoundary?;
       if (boundary == null) return;
 
       final image = await boundary.toImage(pixelRatio: 3.0);
@@ -39,10 +40,15 @@ class _GeneratedTokenScreenState extends State<GeneratedTokenScreen> {
       final bytes = byteData!.buffer.asUint8List();
 
       final tempDir = await getTemporaryDirectory();
-      final file = await File('${tempDir.path}/token_${widget.tokenData['tokenNumber']}.png').create();
+      final file = await File(
+        '${tempDir.path}/token_${widget.tokenData['tokenNumber']}.png',
+      ).create();
       await file.writeAsBytes(bytes);
 
-      await Share.shareXFiles([XFile(file.path)], text: 'RTE Token #${widget.tokenData['tokenNumber']}');
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text: 'RTE Token #${widget.tokenData['tokenNumber']}',
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -67,127 +73,69 @@ class _GeneratedTokenScreenState extends State<GeneratedTokenScreen> {
       'parentMobile': parentMobile,
     });
 
+    const accent = Color(0xFF4DB6AC);
+    const background = Color(0xFF082923);
+
     return Scaffold(
-      backgroundColor: const Color(0xFF0D2B2B),
-      body: Column(
-        children: [
-          const NoInternetBanner(),
-          Expanded(
-            child: Container(
-              width: double.infinity,
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0xFF0D2B2B), Color(0xFF0A1A1A)],
-                ),
-              ),
-              child: SafeArea(
-                child: Column(
+      backgroundColor: background,
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF103D35),
+              Color(0xFF092C26),
+              Color(0xFF081F20),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              const NoInternetBanner(),
+
+              // Compact success header.
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 40),
-                    const Icon(Icons.check_circle_rounded, color: Colors.greenAccent, size: 80),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Token Generated!',
-                      style: GoogleFonts.outfit(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF69F0AE).withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(11),
+                      ),
+                      child: const Icon(
+                        Icons.check_circle_outline_rounded,
+                        color: Color(0xFF69F0AE),
+                        size: 24,
                       ),
                     ),
-                    const SizedBox(height: 30),
-
-                    // Wrap Token Card in RepaintBoundary for capturing
-                    RepaintBoundary(
-                      key: _globalKey,
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 24),
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1A3535),
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: Colors.white.withOpacity(0.05)),
-                        ),
-                        child: Column(
-                          children: [
-                            Text(
-                              'Token #$tokenNumber',
-                              style: GoogleFonts.outfit(
-                                fontSize: 32,
-                                fontWeight: FontWeight.bold,
-                                color: const Color(0xFF81D4FA),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              parentName,
-                              style: GoogleFonts.outfit(fontSize: 18, color: Colors.white, fontWeight: FontWeight.w500),
-                            ),
-                            Text(
-                              parentMobile,
-                              style: GoogleFonts.outfit(fontSize: 14, color: Colors.white54),
-                            ),
-                            const SizedBox(height: 30),
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: QrImageView(
-                                data: qrJson,
-                                version: QrVersions.auto,
-                                size: 200.0,
-                                eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.square, color: Color(0xFF004D40)),
-                                dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.square, color: Color(0xFF004D40)),
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                            Text(
-                              'Scan this QR on parent app',
-                              style: GoogleFonts.outfit(fontSize: 12, color: Colors.white38),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    const Spacer(),
-
-                    Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Row(
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: () => context.go('/office/dashboard'),
-                              icon: const Icon(Icons.close_rounded),
-                              label: const Text('Close'),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.white54,
-                                side: const BorderSide(color: Colors.white12),
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                              ),
+                          Text(
+                            'Token generated',
+                            style: GoogleFonts.outfit(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
                             ),
                           ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            flex: 2,
-                            child: ElevatedButton.icon(
-                              onPressed: _isSaving ? null : _captureAndSave,
-                              icon: _isSaving 
-                                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                                : const Icon(Icons.save_alt_rounded),
-                              label: Text(_isSaving ? 'Processing...' : 'Save & Share'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF00796B),
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                elevation: 0,
-                              ),
+                          const SizedBox(height: 3),
+                          Text(
+                            'Keep this QR code for parent sign-in.',
+                            style: GoogleFonts.outfit(
+                              fontSize: 12,
+                              height: 1.35,
+                              color: Colors.white.withOpacity(0.68),
                             ),
                           ),
                         ],
@@ -196,9 +144,252 @@ class _GeneratedTokenScreenState extends State<GeneratedTokenScreen> {
                   ],
                 ),
               ),
+
+              // The ticket has its own scrollable area, so it remains visible
+              // on short devices while the action buttons stay fixed below.
+              Expanded(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(20, 6, 20, 18),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 440),
+                      child: RepaintBoundary(
+                        key: _globalKey,
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: Colors.black.withOpacity(0.06),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Center(
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 34,
+                                      height: 34,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFE0F2F1),
+                                        borderRadius: BorderRadius.circular(9),
+                                      ),
+                                      child: const Icon(
+                                        Icons.confirmation_number_outlined,
+                                        color: Color(0xFF00796B),
+                                        size: 20,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Text(
+                                      'RTE APPLICATION TOKEN',
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.outfit(
+                                        color: const Color(0xFF42615B),
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 0.7,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'TOKEN NUMBER',
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.outfit(
+                                  fontSize: 10,
+                                  letterSpacing: 1,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.blueGrey.shade500,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '#$tokenNumber',
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.outfit(
+                                  fontSize: 34,
+                                  height: 1.15,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF00695C),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                parentName.isEmpty ? 'Parent / Guardian' : parentName,
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.outfit(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF172B27),
+                                ),
+                              ),
+                              if (parentMobile.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Center(
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.phone_rounded,
+                                        size: 14,
+                                        color: Colors.blueGrey.shade400,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        parentMobile,
+                                        style: GoogleFonts.outfit(
+                                          fontSize: 13,
+                                          color: Colors.blueGrey.shade600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 14),
+                                child: Divider(
+                                  height: 1,
+                                  color: Color(0xFFE8EEEC),
+                                ),
+                              ),
+                              Center(
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: const Color(0xFFE6ECEA),
+                                    ),
+                                  ),
+                                  child: QrImageView(
+                                    data: qrJson,
+                                    version: QrVersions.auto,
+                                    size: 190,
+                                    backgroundColor: Colors.white,
+                                    eyeStyle: const QrEyeStyle(
+                                      eyeShape: QrEyeShape.square,
+                                      color: Color(0xFF004D40),
+                                    ),
+                                    dataModuleStyle: const QrDataModuleStyle(
+                                      dataModuleShape: QrDataModuleShape.square,
+                                      color: Color(0xFF004D40),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                'Scan this QR code in the parent app',
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.outfit(
+                                  fontSize: 12,
+                                  color: Colors.blueGrey.shade600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Container(
+          height: 70,
+          color: background,
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: OutlinedButton(
+                      onPressed: _isSaving
+                          ? null
+                          : () => context.go('/office/dashboard'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white.withOpacity(0.9),
+                        side: BorderSide(color: Colors.white.withOpacity(0.2)),
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        minimumSize: const Size(0, 48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        'Close',
+                        style: GoogleFonts.outfit(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 3,
+                    child: ElevatedButton.icon(
+                      onPressed: _isSaving ? null : _captureAndSave,
+                      icon: _isSaving
+                          ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: background,
+                        ),
+                      )
+                          : const Icon(Icons.ios_share_rounded, size: 18),
+                      label: Text(
+                        _isSaving ? 'Preparing…' : 'Save & Share',
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.clip,
+                        style: GoogleFonts.outfit(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: accent,
+                        foregroundColor: background,
+                        disabledBackgroundColor: accent.withOpacity(0.4),
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        minimumSize: const Size(0, 48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }
