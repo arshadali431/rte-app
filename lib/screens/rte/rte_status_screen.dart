@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/utils.dart';
 import '../../services/rte_service.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../models.dart';
+import '../../widgets/no_internet_banner.dart';
 import 'rte_result_screen.dart';
 
 class RteStatusScreen extends StatefulWidget {
@@ -251,171 +251,233 @@ class _RteStatusScreenState extends State<RteStatusScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('RTE Status Checker',
-            style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-        backgroundColor: const Color(0xFF0D2B2B),
-        foregroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        actions: [
-          IconButton(
-            onPressed: _showHistory,
-            icon: const Icon(Icons.history_rounded, color: Colors.white70),
-            tooltip: 'Recent Checks',
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF0D2B2B),
-              Color(0xFF122929),
-              Color(0xFF0A1A1A),
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(28, 10, 28, 32),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                const SizedBox(height: 20),
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A3535),
-                    borderRadius: BorderRadius.circular(25),
-                    border: Border.all(color: Colors.white.withOpacity(0.07)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        "Application Credentials",
-                        style: GoogleFonts.outfit(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        "Enter your details to track application status",
-                        style: GoogleFonts.outfit(
-                          fontSize: 14,
-                          color: Colors.white54,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      _buildDarkTextField(
-                        controller: appController,
-                        label: "Application Number",
-                        hint: "GJ/2026-27/SRC/1234567",
-                        icon: Icons.tag_rounded,
-                      ),
-                      const SizedBox(height: 16),
-                      _buildDarkTextField(
-                        controller: dobController,
-                        label: "Date of Birth",
-                        icon: Icons.calendar_today_outlined,
-                        hint: "DD-MM-YYYY",
-                        keyboardType: TextInputType.datetime,
-                        inputFormatters: [DateInputFormatter()],
-                      ),
-                      const SizedBox(height: 25),
-                      if (loading)
-                        const Center(
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 10),
-                            child: CircularProgressIndicator(
-                              color: Color(0xFF81D4FA),
-                            ),
-                          ),
-                        )
-                      else
-                        SizedBox(
-                          height: 58,
-                          child: ElevatedButton(
-                            onPressed: fetchStatus,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF81D4FA),
-                              foregroundColor: const Color(0xFF0A1A1A),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(18),
-                              ),
-                              elevation: 0,
-                            ),
-                            child: Text(
-                              "Check Status",
-                              style: GoogleFonts.outfit(
-                                fontSize: 17,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                      if (errorMessage != null) ...[
-                        const SizedBox(height: 16),
-                        Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: Colors.red.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: Colors.redAccent.withOpacity(0.3),
-                            ),
-                          ),
-                          child: Text(
-                            errorMessage!,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: Colors.redAccent,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 32),
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.04),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.white.withOpacity(0.08)),
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        "આ એપ્લિકેશન ફક્ત અરજીની સ્થિતિ તપાસવાના હેતુ માટે જ છે, અન્ય કોઈપણ હેતુ માટે ઉપયોગમાં લેવામાં આવી નથી.",
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.notoSansGujarati(
-                          fontSize: 14,
-                          color: Colors.white60,
-                          height: 1.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-              ],
+      body: Stack(
+        children: [
+          // 1. Dynamic Background Gradient
+          Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF004D40), // Deep Teal
+                  Color(0xFF00251A), // Darker Teal
+                  Color(0xFF0D2B2B), // Very Dark
+                ],
+              ),
             ),
           ),
-        ),
+          
+          // 2. Decorative Background blobs
+          Positioned(
+            top: -60,
+            right: -60,
+            child: Container(
+              width: 280,
+              height: 280,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF00796B).withOpacity(0.12),
+              ),
+            ),
+          ),
+
+          // 3. Content
+          Column(
+            children: [
+              NoInternetBanner(),
+              // Custom Navigation Header
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 50, 16, 10),
+                child: Row(
+                  children: [
+                    InkWell(
+                      onTap: () => Navigator.of(context).pop(),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          color: Colors.white70,
+                          size: 18,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Text(
+                      'Status Checker',
+                      style: GoogleFonts.outfit(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: _showHistory,
+                      icon: const Icon(Icons.history_rounded, color: Colors.white70, size: 22),
+                      tooltip: 'Recent Checks',
+                    ),
+                  ],
+                ),
+              ),
+
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
+                  child: Column(
+                    children: [
+                      // Elite Credential Card
+                      Container(
+                        padding: const EdgeInsets.all(28),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.06),
+                          borderRadius: BorderRadius.circular(32),
+                          border: Border.all(
+                            color: const Color(0xFF4DB6AC).withOpacity(0.15),
+                            width: 1.5,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black26.withOpacity(0.1),
+                              blurRadius: 30,
+                              offset: const Offset(0, 15),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              "Application Credentials",
+                              style: GoogleFonts.outfit(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              "Track your application status securely",
+                              style: GoogleFonts.outfit(
+                                fontSize: 13,
+                                color: const Color(0xFF4DB6AC),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 32),
+                            _buildDarkTextField(
+                              controller: appController,
+                              label: "Application Number",
+                              hint: "GJ/2026-27/SRC/...",
+                              icon: Icons.tag_rounded,
+                            ),
+                            const SizedBox(height: 20),
+                            _buildDarkTextField(
+                              controller: dobController,
+                              label: "Date of Birth",
+                              icon: Icons.calendar_today_outlined,
+                              hint: "DD-MM-YYYY",
+                              keyboardType: TextInputType.datetime,
+                              inputFormatters: [DateInputFormatter()],
+                            ),
+                            const SizedBox(height: 40),
+                            if (loading)
+                              const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 12),
+                                  child: CircularProgressIndicator(
+                                    color: Color(0xFF4DB6AC),
+                                    strokeWidth: 3,
+                                  ),
+                                ),
+                              )
+                            else
+                              SizedBox(
+                                height: 60,
+                                child: ElevatedButton(
+                                  onPressed: fetchStatus,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF00796B),
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                  child: Text(
+                                    "Check Status",
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            if (errorMessage != null) ...[
+                              const SizedBox(height: 20),
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: Colors.red.withOpacity(0.08),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: Colors.redAccent.withOpacity(0.2)),
+                                ),
+                                child: Text(
+                                  errorMessage!,
+                                  textAlign: TextAlign.center,
+                                  style: GoogleFonts.outfit(
+                                    color: Colors.redAccent.withOpacity(0.9),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 40),
+                      
+                      // Subtle Info Panel
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.03),
+                          borderRadius: BorderRadius.circular(28),
+                          border: Border.all(color: Colors.white.withOpacity(0.05)),
+                        ),
+                        child: Column(
+                          children: [
+                            const Icon(Icons.info_outline_rounded, color: Colors.white12, size: 24),
+                            const SizedBox(height: 16),
+                            Text(
+                              "આ એપ્લિકેશન ફક્ત અરજીની સ્થિતિ તપાસવાના હેતુ માટે જ છે, અન્ય કોઈપણ હેતુ માટે ઉપયોગમાં લેવામાં આવી નથી.",
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.notoSansGujarati(
+                                fontSize: 13,
+                                color: Colors.white.withOpacity(0.4),
+                                height: 1.6,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -428,32 +490,47 @@ class _RteStatusScreenState extends State<RteStatusScreen> {
     TextInputType? keyboardType,
     List<TextInputFormatter>? inputFormatters,
   }) {
-    return TextField(
-      controller: controller,
-      keyboardType: keyboardType,
-      inputFormatters: inputFormatters,
-      style: const TextStyle(color: Colors.white, fontSize: 15),
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        labelStyle: const TextStyle(color: Colors.white54),
-        hintStyle: const TextStyle(color: Colors.white38),
-        prefixIcon: Icon(icon, color: Colors.white38, size: 20),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFF2E5050), width: 1.5),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            label,
+            style: GoogleFonts.outfit(
+              color: Colors.white.withOpacity(0.5),
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFF81D4FA), width: 1.8),
+        TextField(
+          controller: controller,
+          keyboardType: keyboardType,
+          inputFormatters: inputFormatters,
+          style: const TextStyle(color: Colors.white, fontSize: 15),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: TextStyle(color: Colors.white.withOpacity(0.2)),
+            prefixIcon: Icon(icon, color: const Color(0xFF4DB6AC).withOpacity(0.5), size: 18),
+            filled: true,
+            fillColor: Colors.black.withOpacity(0.2),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+              borderSide: BorderSide(color: Colors.white.withOpacity(0.05)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+              borderSide: const BorderSide(color: Color(0xFF4DB6AC), width: 1.5),
+            ),
+            contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+          ),
         ),
-        filled: true,
-        fillColor: const Color(0xFF122929),
-        contentPadding: const EdgeInsets.symmetric(
-          vertical: 18,
-          horizontal: 16,
-        ),
-      ),
+      ],
     );
   }
 }

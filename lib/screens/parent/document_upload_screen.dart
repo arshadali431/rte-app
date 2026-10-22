@@ -61,8 +61,9 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
         context: context,
         builder: (context) => AlertDialog(
           backgroundColor: Colors.white,
-          title: Text('Aadhaar Type', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-          content: Text('Is this a small card-size Aadhaar or a full-page Aadhaar?', style: GoogleFonts.outfit()),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Text('Aadhaar Type', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.black)),
+          content: Text('Is this a small card-size Aadhaar or a full-page Aadhaar?', style: GoogleFonts.outfit(color: Colors.black87)),
           actions: [
             TextButton(onPressed: () => Navigator.pop(context, 'full'), child: Text('Full Page', style: GoogleFonts.outfit(color: const Color(0xFF00796B)))),
             TextButton(onPressed: () => Navigator.pop(context, 'card'), child: Text('Card Size', style: GoogleFonts.outfit(color: const Color(0xFF00796B)))),
@@ -207,6 +208,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
         await _loadData();
 
         if (mounted) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Document uploaded successfully'),
@@ -215,12 +217,25 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
             ),
           );
         }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Photo upload failed. Please try again later.'),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('Photo upload error: $e\n$stackTrace');
       if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Upload failed. Please check file size or signal.'),
+            content: Text('Photo upload failed. Please try again later.'),
             behavior: SnackBarBehavior.floating,
             backgroundColor: Colors.redAccent,
           ),
@@ -401,20 +416,39 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
         await _loadData();
         
         if (mounted) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text('Merged Aadhaar uploaded successfully', style: GoogleFonts.outfit(color: Colors.white)),
             backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
           ));
         }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Photo upload failed. Please try again later.'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ));
+        }
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('Merged photo upload error: $e\n$stackTrace');
       if (mounted) {
-        setState(() => _uploadingType = null);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Error: $e', style: GoogleFonts.outfit(color: Colors.white)),
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Photo upload failed. Please try again later.'),
           backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
         ));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+          _uploadingType = null;
+        });
       }
     }
   }
@@ -426,7 +460,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Text('Add Other Document', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+        title: Text('Add Other Document', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.black)),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -531,11 +565,11 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           'Delete Document?',
-          style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+          style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.black),
         ),
         content: Text(
           'Are you sure you want to delete this document? You can upload a new one after deleting.',
-          style: GoogleFonts.outfit(),
+          style: GoogleFonts.outfit(color: Colors.black87),
         ),
         actions: [
           TextButton(
@@ -702,7 +736,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                     ? SliverToBoxAdapter(
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                          child: Text('No additional documents uploaded', style: GoogleFonts.outfit(color: Colors.grey[400], fontSize: 12)),
+                          child: Text('No additional documents uploaded', style: GoogleFonts.outfit(color: Colors.black45, fontSize: 12)),
                         ),
                       )
                     : SliverList(
@@ -793,6 +827,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                 style: GoogleFonts.outfit(
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
+                  color: Colors.black,
                 ),
               ),
               Text(
@@ -818,7 +853,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
           const SizedBox(height: 8),
           Text(
             'Complete mandatory uploads to finalize your application',
-            style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey[600]),
+            style: GoogleFonts.outfit(fontSize: 12, color: Colors.black54),
           ),
         ],
       ),

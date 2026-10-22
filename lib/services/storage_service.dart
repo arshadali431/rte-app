@@ -12,6 +12,7 @@ class StorageService {
   StorageService._internal();
 
   Future<String?> uploadDocument(String tokenId, String docType, File file) async {
+    File? tempFile;
     try {
       // Step 1: Compress image to below 400KB
       Uint8List? compressed;
@@ -39,7 +40,7 @@ class StorageService {
       
       // Step 2: Save compressed bytes to temp file
       final tempDir = await getTemporaryDirectory();
-      final tempFile = File('${tempDir.path}/${docType}_${DateTime.now().millisecondsSinceEpoch}.jpg');
+      tempFile = File('${tempDir.path}/${docType}_${DateTime.now().millisecondsSinceEpoch}.jpg');
       await tempFile.writeAsBytes(compressed);
       
       // Step 3: Upload to Firebase Storage
@@ -51,13 +52,17 @@ class StorageService {
       await storageRef.putFile(tempFile);
       final downloadUrl = await storageRef.getDownloadURL();
       
-      // Step 4: Clean up temp file
-      await tempFile.delete();
-      
       return downloadUrl;
-    } catch (e) {
-      debugPrint('Upload error: $e');
+    } catch (e, stackTrace) {
+      debugPrint('Firebase Storage upload error: $e\n$stackTrace');
       return null;
+    } finally {
+      // Step 4: Clean up temp file safely
+      if (tempFile != null && await tempFile.exists()) {
+        try {
+          await tempFile.delete();
+        } catch (_) {}
+      }
     }
   }
 

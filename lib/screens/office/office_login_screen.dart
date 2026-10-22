@@ -137,224 +137,252 @@ class _OfficeLoginScreenState extends State<OfficeLoginScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Column(
+      body: Stack(
         children: [
-          const NoInternetBanner(),
-          Expanded(
-            child: Container(
-              width: double.infinity,
-              height: double.infinity,
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFF0D2B2B),
-                    Color(0xFF004D40),
-                    Color(0xFF00796B),
-                  ],
-                ),
-              ),
-              child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Back button
-                Align(
-                  alignment: Alignment.topLeft,
-                  child: IconButton(
-                    onPressed: () => context.go('/role'),
-                    icon: const Icon(
-                      Icons.arrow_back_ios_new_rounded,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-
-                // Icon
-                Center(
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF00796B).withOpacity(0.15),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.admin_panel_settings_rounded,
-                      size: 56,
-                      color: Color(0xFF81D4FA),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-
-                Text(
-                  'Office Login',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.outfit(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                Text(
-                  'Enter your credentials to continue',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.outfit(
-                    fontSize: 14,
-                    color: Colors.white54,
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // Login Card
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A3535),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: Colors.white.withOpacity(0.08)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Username
-                      _buildLabel('Username'),
-                      TextField(
-                        controller: _usernameController,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: _inputDecoration(
-                          'Enter username',
-                          Icons.person_outline_rounded,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      // Password
-                      _buildLabel('Password'),
-                      TextField(
-                        controller: _passwordController,
-                        obscureText: _obscurePassword,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: _inputDecoration(
-                          'Enter password',
-                          Icons.lock_outline_rounded,
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscurePassword
-                                  ? Icons.visibility_outlined
-                                  : Icons.visibility_off_outlined,
-                              color: Colors.white38,
-                              size: 20,
-                            ),
-                            onPressed: () => setState(
-                              () => _obscurePassword = !_obscurePassword,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-
-                      // Login Button
-                      SizedBox(
-                        height: 56,
-                        child: ElevatedButton(
-                          onPressed: (_isLoading || _isLocked) ? null : _login,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                _isLocked ? Colors.grey[700] : const Color(0xFF00796B),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16)),
-                            elevation: 0,
-                          ),
-                          child: _isLoading
-                              ? const SizedBox(
-                                  height: 24,
-                                  width: 24,
-                                  child: CircularProgressIndicator(
-                                      color: Colors.white, strokeWidth: 2))
-                              : _isLocked
-                                  ? Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        const Icon(Icons.lock_clock_rounded, size: 20),
-                                        const SizedBox(width: 10),
-                                        Text(
-                                          'Try again in ${_lockSecondsRemaining}s',
-                                          style: GoogleFonts.outfit(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold),
-                                        ),
-                                      ],
-                                    )
-                                  : Text('Login',
-                                      style: GoogleFonts.outfit(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (_failedAttempts > 0 && !_isLocked) ...[
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(3, (index) {
-                      return Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 4),
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: index < _failedAttempts
-                              ? Colors.redAccent
-                              : Colors.white24,
-                        ),
-                      );
-                    }),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${3 - _failedAttempts} attempt(s) remaining',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.outfit(
-                      color: Colors.redAccent,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
+          // 1. Dynamic Background Gradient
+          Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF004D40), // Deep Teal
+                  Color(0xFF00251A), // Darker Teal
+                  Color(0xFF0D2B2B), // Very Dark
                 ],
-                const SizedBox(height: 40),
-                Text(
-                  'For Office username and password contact',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.outfit(
-                    color: Colors.white38,
-                    fontSize: 13,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Email: arshadali.app431@gmail.com',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.outfit(
-                    color: const Color(0xFF81D4FA).withOpacity(0.5),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
-        ),
+          
+          // 2. Decorative Background blobs
+          Positioned(
+            top: -50,
+            right: -50,
+            child: Container(
+              width: 250,
+              height: 250,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF00796B).withOpacity(0.1),
+              ),
+            ),
+          ),
+
+          // 3. Content
+          Column(
+            children: [
+              const NoInternetBanner(),
+              Expanded(
+                child: SafeArea(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 28.0),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 12),
+                        // Back Button
+                        Align(
+                          alignment: Alignment.topLeft,
+                          child: InkWell(
+                            onTap: () => context.go('/role'),
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.05),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.arrow_back_ios_new_rounded,
+                                color: Colors.white70,
+                                size: 18,
+                              ),
+                            ),
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 20),
+                        // Admin Icon
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFD54F).withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.admin_panel_settings_rounded,
+                            size: 50,
+                            color: Color(0xFFFFD54F),
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 24),
+                        Text(
+                          'Office Login',
+                          style: GoogleFonts.outfit(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Enter your credentials to access the portal',
+                          style: GoogleFonts.outfit(
+                            fontSize: 15,
+                            color: Colors.white.withOpacity(0.5),
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 40),
+                        
+                        // Glass Login Card
+                        Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.06),
+                            borderRadius: BorderRadius.circular(32),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.1),
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _buildLabel('Username'),
+                              TextField(
+                                controller: _usernameController,
+                                style: const TextStyle(color: Colors.white),
+                                decoration: _inputDecoration(
+                                  'Enter username',
+                                  Icons.person_outline_rounded,
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                              _buildLabel('Password'),
+                              TextField(
+                                controller: _passwordController,
+                                obscureText: _obscurePassword,
+                                style: const TextStyle(color: Colors.white),
+                                decoration: _inputDecoration(
+                                  'Enter password',
+                                  Icons.lock_outline_rounded,
+                                  suffixIcon: IconButton(
+                                    icon: Icon(
+                                      _obscurePassword
+                                          ? Icons.visibility_outlined
+                                          : Icons.visibility_off_outlined,
+                                      color: Colors.white38,
+                                      size: 20,
+                                    ),
+                                    onPressed: () => setState(
+                                      () => _obscurePassword = !_obscurePassword,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 32),
+                              
+                              // Premium Login Button
+                              SizedBox(
+                                height: 58,
+                                child: ElevatedButton(
+                                  onPressed: (_isLoading || _isLocked) ? null : _login,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: _isLocked 
+                                        ? Colors.grey[800] 
+                                        : const Color(0xFF00796B),
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(18),
+                                    ),
+                                  ),
+                                  child: _isLoading
+                                      ? const SizedBox(
+                                          height: 24,
+                                          width: 24,
+                                          child: CircularProgressIndicator(
+                                            color: Colors.white,
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : _isLocked
+                                          ? Row(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                const Icon(Icons.lock_clock_rounded, size: 20),
+                                                const SizedBox(width: 10),
+                                                Text(
+                                                  'Try in ${_lockSecondsRemaining}s',
+                                                  style: GoogleFonts.outfit(
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ],
+                                            )
+                                          : Text(
+                                              'Login',
+                                              style: GoogleFonts.outfit(
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        
+                        if (_failedAttempts > 0 && !_isLocked) ...[
+                          const SizedBox(height: 20),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: List.generate(3, (index) {
+                              return Container(
+                                margin: const EdgeInsets.symmetric(horizontal: 5),
+                                width: 12,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(10),
+                                  color: index < _failedAttempts
+                                      ? Colors.redAccent
+                                      : Colors.white12,
+                                ),
+                              );
+                            }),
+                          ),
+                        ],
+                        
+                        const SizedBox(height: 48),
+                        Text(
+                          'For Office credentials contact',
+                          style: GoogleFonts.outfit(
+                            color: Colors.white24,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Email: arshadali.app431@gmail.com',
+                          style: GoogleFonts.outfit(
+                            color: const Color(0xFFFFD54F).withOpacity(0.6),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
-    ),
-  ],
-),
     );
   }
 

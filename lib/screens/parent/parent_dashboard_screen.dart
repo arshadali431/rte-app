@@ -108,6 +108,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen>
     if (_token == null) return;
     showModalBottomSheet(
       context: context,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -141,18 +142,20 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen>
                 style: GoogleFonts.outfit(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
+                  color: Colors.black,
                 ),
               ),
               Text(
-                _token!.parentMobile,
-                style: GoogleFonts.outfit(color: Colors.grey[600]),
+                _token!.parentMobile.isEmpty ? 'N/A' : _token!.parentMobile,
+                style: GoogleFonts.outfit(color: Colors.black54),
               ),
               const SizedBox(height: 8),
               Text(
                 'Token #${_token!.tokenNumber}',
                 style: GoogleFonts.outfit(
                   color: const Color(0xFF00796B),
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
                 ),
               ),
               const SizedBox(height: 32),
@@ -160,10 +163,35 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen>
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   onPressed: () async {
-                    final prefs = await SharedPreferences.getInstance();
-                    await prefs.remove('token_id');
-                    await prefs.remove('token_number');
-                    if (context.mounted) context.go('/role');
+                    // Show confirmation dialog before logout
+                    final bool? confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        backgroundColor: Colors.white,
+                        title: Text('Log Out', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.black)),
+                        content: Text('Are you sure you want to log out from your session?', style: GoogleFonts.outfit(color: Colors.black87)),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: Text('Cancel', style: GoogleFonts.outfit(color: Colors.grey[600], fontWeight: FontWeight.w600)),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            child: Text('Log Out', style: GoogleFonts.outfit(color: Colors.red, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ),
+                    );
+
+                    if (confirm == true) {
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.remove('token_id');
+                      await prefs.remove('token_number');
+                      if (context.mounted) {
+                        Navigator.pop(context); // Close profile sheet
+                        context.go('/role');
+                      }
+                    }
                   },
                   icon: const Icon(Icons.logout_rounded),
                   label: const Text('Log Out'),

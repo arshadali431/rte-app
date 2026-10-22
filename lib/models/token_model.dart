@@ -13,6 +13,8 @@ class TokenModel {
   final List<Map<String, dynamic>> applicationHistory;
   final String? govStatus; // "APPROVED", "CANCELLED", "PENDING", "ERROR"
   final String? govStatusMessage; // Full Gujarati text/Reason
+  final String? govChildName; // Child's name from govt portal (Gujarati script)
+  final String? govParentMobile; // Primary mobile number from govt portal
   final DateTime? lastSyncAt;
 
   TokenModel({
@@ -28,13 +30,17 @@ class TokenModel {
     this.applicationHistory = const [],
     this.govStatus,
     this.govStatusMessage,
+    this.govChildName,
+    this.govParentMobile,
     this.lastSyncAt,
   });
 
   factory TokenModel.fromFirestore(Map<String, dynamic> data, String id) {
     return TokenModel(
       id: id,
-      tokenNumber: data['tokenNumber'] ?? 0,
+      tokenNumber: (data['tokenNumber'] is num && (data['tokenNumber'] as num).isFinite)
+          ? (data['tokenNumber'] as num).toInt()
+          : 0,
       parentName: data['parentName'] ?? '',
       parentMobile: data['parentMobile'] ?? '',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
@@ -42,9 +48,13 @@ class TokenModel {
       status: data['status'] ?? 'pending',
       applicationId: data['applicationId'],
       childDob: data['childDob'],
-      applicationHistory: List<Map<String, dynamic>>.from(data['applicationHistory'] ?? []),
+      applicationHistory: List<Map<String, dynamic>>.from(
+        data['applicationHistory'] ?? [],
+      ),
       govStatus: data['govStatus'],
       govStatusMessage: data['govStatusMessage'],
+      govChildName: data['govChildName'],
+      govParentMobile: data['govParentMobile'],
       lastSyncAt: (data['lastSyncAt'] as Timestamp?)?.toDate(),
     );
   }
@@ -54,7 +64,9 @@ class TokenModel {
       'tokenNumber': tokenNumber,
       'parentName': parentName,
       'parentMobile': parentMobile,
-      'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : FieldValue.serverTimestamp(),
+      'createdAt': createdAt != null
+          ? Timestamp.fromDate(createdAt!)
+          : FieldValue.serverTimestamp(),
       'createdBy': createdBy,
       'status': status,
       'applicationId': applicationId,
@@ -62,6 +74,8 @@ class TokenModel {
       'applicationHistory': applicationHistory,
       'govStatus': govStatus,
       'govStatusMessage': govStatusMessage,
+      'govChildName': govChildName,
+      'govParentMobile': govParentMobile,
       'lastSyncAt': lastSyncAt != null ? Timestamp.fromDate(lastSyncAt!) : null,
     };
   }

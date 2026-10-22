@@ -155,7 +155,6 @@ class AppRouter {
             state: state,
             child: AnalysisDetailsScreen(
               category: data['category'] as String,
-              tokens: data['tokens'] as List<TokenModel>,
             ),
           );
         },
