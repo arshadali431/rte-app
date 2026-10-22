@@ -104,6 +104,22 @@ extension _LangExt on _Lang {
       case _Lang.gu: return 'સંમતિ અને નોટિસ';
     }
   }
+
+  String get holdBadge {
+    switch (this) {
+      case _Lang.en: return 'Hold 5s';
+      case _Lang.hi: return '5s दबाएं';
+      case _Lang.gu: return '5s દબાવો';
+    }
+  }
+
+  String get holdingLabel {
+    switch (this) {
+      case _Lang.en: return 'Holding...';
+      case _Lang.hi: return 'दबाए रखें...';
+      case _Lang.gu: return 'દબાવી રાખો...';
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -143,7 +159,9 @@ class _ConsentScreenState extends State<ConsentScreen>
   DateTime? _holdStart;
   Timer? _holdTimer;
   double _holdProgress = 0.0; // 0..1
-  AnimationController? _progressController;
+  late final AnimationController _progressController;
+  bool _tapHintVisible = false;
+  Timer? _tapHintTimer;
 
   // -- Overall saving state
   bool _saving = false;
@@ -168,6 +186,19 @@ class _ConsentScreenState extends State<ConsentScreen>
     _detectLanguage();
     _loadSubjectId();
     _scrollController.addListener(_onScroll);
+
+    _progressController = AnimationController(
+      vsync: this,
+      duration: _holdDuration,
+    )..addListener(() {
+        if (!mounted) return;
+        setState(() => _holdProgress = _progressController.value);
+      })
+      ..addStatusListener((status) {
+        if (status == AnimationStatus.completed && _holding) {
+          _onHoldComplete();
+        }
+      });
   }
 
   @override
@@ -175,7 +206,8 @@ class _ConsentScreenState extends State<ConsentScreen>
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     _holdTimer?.cancel();
-    _progressController?.dispose();
+    _tapHintTimer?.cancel();
+    _progressController.dispose();
     super.dispose();
   }
 
@@ -223,7 +255,8 @@ class _ConsentScreenState extends State<ConsentScreen>
       _holding = false;
     });
     _holdTimer?.cancel();
-    _progressController?.stop();
+    _progressController.stop();
+    _progressController.reset();
     _loadConsentText();
   }
 
@@ -270,16 +303,11 @@ class _ConsentScreenState extends State<ConsentScreen>
     if (_saving || _disagreeShown) return;
 
     if (!_scrolledToEnd) {
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_lang.scrollHint, style: GoogleFonts.outfit()),
-          duration: const Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          backgroundColor: const Color(0xFF37474F),
-        ),
-      );
+      setState(() => _tapHintVisible = true);
+      _tapHintTimer?.cancel();
+      _tapHintTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) setState(() => _tapHintVisible = false);
+      });
       return;
     }
 
@@ -295,18 +323,13 @@ class _ConsentScreenState extends State<ConsentScreen>
 
     _onHoldEnd();
 
-    // If user tapped or released before the 5 seconds, guide them
+    // If user tapped or released before the 5 seconds, show inline guidance
     if (heldMs < 5000 && !_saving && _scrolledToEnd) {
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_lang.holdHint, style: GoogleFonts.outfit()),
-          duration: const Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          backgroundColor: const Color(0xFF103D35),
-        ),
-      );
+      setState(() => _tapHintVisible = true);
+      _tapHintTimer?.cancel();
+      _tapHintTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) setState(() => _tapHintVisible = false);
+      });
     }
   }
 
@@ -323,28 +346,16 @@ class _ConsentScreenState extends State<ConsentScreen>
       _holding = true;
       _holdStart = startTime;
       _holdProgress = 0.0;
+      _tapHintVisible = false;
     });
 
-    _progressController?.dispose();
-    _progressController = AnimationController(
-      vsync: this,
-      duration: _holdDuration,
-    )..addListener(() {
-        if (!mounted) return;
-        setState(() => _holdProgress = _progressController!.value);
-      })
-      ..addStatusListener((status) {
-        if (status == AnimationStatus.completed && _holding) {
-          _onHoldComplete();
-        }
-      });
-
-    _progressController!.forward(from: 0);
+    _progressController.forward(from: 0.0);
   }
 
   void _onHoldEnd() {
     if (!_holding || _saving) return;
-    _progressController?.stop();
+    _progressController.stop();
+    _progressController.reset();
     setState(() {
       _holding = false;
       _holdProgress = 0.0;
@@ -355,7 +366,7 @@ class _ConsentScreenState extends State<ConsentScreen>
   Future<void> _onHoldComplete() async {
     final holdMs = DateTime.now().difference(_holdStart!).inMilliseconds;
     HapticFeedback.heavyImpact();
-    _progressController?.stop();
+    _progressController.stop();
     setState(() {
       _holding = false;
       _holdProgress = 1.0;
@@ -728,14 +739,14 @@ class _ConsentScreenState extends State<ConsentScreen>
             height: 24,
             child: CircularProgressIndicator(
               value: _holdProgress,
-              strokeWidth: 3,
+              strokeWidth: 3.5,
               color: Colors.white,
               backgroundColor: Colors.white30,
             ),
           ),
           const SizedBox(width: 12),
           Text(
-            '${_lang.agreeLabel} ($secondsLeft s)',
+            '${_lang.holdingLabel} ${secondsLeft}s',
             style: GoogleFonts.outfit(
               color: Colors.white,
               fontSize: 16,
@@ -746,13 +757,36 @@ class _ConsentScreenState extends State<ConsentScreen>
       );
     }
 
-    return Text(
-      _lang.agreeLabel,
-      style: GoogleFonts.outfit(
-        color: Colors.white,
-        fontSize: 16,
-        fontWeight: FontWeight.w700,
-      ),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Icon(Icons.touch_app_rounded, color: Colors.white, size: 20),
+        const SizedBox(width: 8),
+        Text(
+          _lang.agreeLabel,
+          style: GoogleFonts.outfit(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+          decoration: BoxDecoration(
+            color: Colors.black26,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Text(
+            _lang.holdBadge,
+            style: GoogleFonts.outfit(
+              color: Colors.white70,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -760,7 +794,7 @@ class _ConsentScreenState extends State<ConsentScreen>
     final canAgree = _scrolledToEnd && !_saving && !_disagreeShown;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
       decoration: BoxDecoration(
         color: _surface.withValues(alpha: 0.95),
         border: Border(
@@ -770,6 +804,37 @@ class _ConsentScreenState extends State<ConsentScreen>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Inline Tap Hint (visible when tapped instead of held)
+          if (_tapHintVisible)
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFB300).withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFFFB300), width: 1),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.info_outline_rounded,
+                      color: Color(0xFFFFD54F), size: 16),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      !_scrolledToEnd ? _lang.scrollHint : _lang.holdHint,
+                      style: GoogleFonts.outfit(
+                        color: const Color(0xFFFFD54F),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
           // Hold-to-agree button (instant touch response via Listener)
           Semantics(
             label: canAgree
@@ -777,6 +842,7 @@ class _ConsentScreenState extends State<ConsentScreen>
                 : _lang.scrollHint,
             button: true,
             child: Listener(
+              behavior: HitTestBehavior.opaque,
               onPointerDown: _onPointerDown,
               onPointerUp: _onPointerUp,
               onPointerCancel: _onPointerCancel,
@@ -811,7 +877,7 @@ class _ConsentScreenState extends State<ConsentScreen>
             button: true,
             child: SizedBox(
               width: double.infinity,
-              height: 52,
+              height: 50,
               child: OutlinedButton(
                 onPressed: _saving || _disagreeShown ? null : _onDisagree,
                 style: OutlinedButton.styleFrom(
@@ -841,8 +907,8 @@ class _ConsentScreenState extends State<ConsentScreen>
             _lang.holdHint,
             textAlign: TextAlign.center,
             style: GoogleFonts.outfit(
-              color: Colors.white30,
-              fontSize: 11,
+              color: Colors.white60,
+              fontSize: 11.5,
             ),
           ),
         ],
