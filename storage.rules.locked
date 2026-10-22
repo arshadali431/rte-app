@@ -1,0 +1,23 @@
+rules_version = '2';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DRAFT — deny-all Firebase Storage rules. NOT DEPLOYED.
+//
+// The committed storage.rules still allows unauthenticated read/write of every
+// `tokens/**` object (Aadhaar/child photos, birth certificates, PAN cards).
+// Deploy this only together with the Firestore auth model: the app uploads
+// documents directly from the client with no authenticated identity, so
+// deploying this as-is breaks all document upload and viewing.
+//
+// firebase.json currently has no `storage` deploy target — add
+//   "storage": { "rules": "storage.rules" }
+// before `firebase deploy --only storage` will do anything.
+// ─────────────────────────────────────────────────────────────────────────────
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

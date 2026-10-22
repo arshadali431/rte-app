@@ -1,0 +1,16 @@
+#!/bin/sh
+# Pre-commit secret scan.
+#
+# Enable once per clone:
+#   git config core.hooksPath .githooks
+#
+# Requires gitleaks: https://github.com/gitleaks/gitleaks
+# Emergency bypass (do not use on normal commits): git commit --no-verify
+
+if command -v gitleaks >/dev/null 2>&1; then
+    exec gitleaks protect --staged --redact --config .gitleaks.toml
+fi
+
+echo "pre-commit: gitleaks is not installed - secret scan skipped."
+echo "            Install it from https://github.com/gitleaks/gitleaks to enable the scan."
+exit 0

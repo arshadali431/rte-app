@@ -1,0 +1,11 @@
+# Dependencies
+node_modules/
+
+# Local configuration / credentials — never commit
+.env
+.env.*
+!.env.example
+service-account*.json
+.runtimeconfig.json
+*.log
+firebase-debug.log

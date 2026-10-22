@@ -1,0 +1,11 @@
+{
+  "name": "rte-import-script",
+  "version": "1.0.0",
+  "description": "Import data from Google Sheets to Firestore",
+  "main": "import_from_sheet.js",
+  "dependencies": {
+    "firebase-admin": "^12.0.0",
+    "axios": "^1.6.0",
+    "csv-parse": "^5.5.0"
+  }
+}

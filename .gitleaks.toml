@@ -1,0 +1,27 @@
+# Gitleaks configuration — RTE Status Checker
+# Docs: https://github.com/gitleaks/gitleaks
+#
+# Default rules plus a small allowlist for build outputs, dependencies, lockfiles
+# and the Firebase *client* configuration files whose API keys are public
+# identifiers by design (see CREDENTIALS.md — those must be restricted in GCP,
+# not removed from the client).
+
+title = "RTE Status Checker secret scan"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Build artefacts, dependencies, lockfiles and public-by-design Firebase client config"
+paths = [
+  '''(^|/)build/''',
+  '''(^|/)\.dart_tool/''',
+  '''(^|/)node_modules/''',
+  '''(^|/)\.gradle/''',
+  '''(^|/)audit-reports/''',
+  '''(^|/)package-lock\.json$''',
+  '''(^|/)pubspec\.lock$''',
+  '''(^|/)google-services\.json$''',
+  '''(^|/)GoogleService-Info\.plist$''',
+  '''(^|/)firebase_options\.dart$''',
+]
