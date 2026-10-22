@@ -68,6 +68,53 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // -----------------------------------------------------------------------
+    // deletion_requests/{tokenId} — DPDP self-service deletion
+    //
+    // STOPGAP: until Firebase Auth exists, the parent client writes/cancels its
+    // own request (authenticated only by token + mobile, app-side). These rules
+    // therefore enforce structure, not identity.
+    //
+    // TODO(auth-migration): after Auth, require
+    //   request.auth.uid == parent uid bound to the token, and keep only the
+    //   status transition pending -> cancelled available to the client.
+    //
+    // Execution (status -> executed) is done by the scheduled Cloud Function
+    // using the Admin SDK, which bypasses these rules.
+    // -----------------------------------------------------------------------
+    match /deletion_requests/{tokenId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null &&
+        request.resource.data.keys().hasAll(['requestedAt', 'executeAfter', 'status']) &&
+        request.resource.data.status == 'pending';
+      // Cancellation only: clients may set status cancelled + cancelledAt.
+      allow update: if request.auth != null &&
+        resource.data.status == 'pending' &&
+        request.resource.data.status == 'cancelled' &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'cancelledAt']);
+      allow delete: if false;
+    }
+
+    // -----------------------------------------------------------------------
+    // deleted_tokens/{tokenId} — post-hard-delete tombstone
+    //
+    // Written and read only by the scheduled deletion function (Admin SDK).
+    // Contains no personal data: tokenId, deletedAt, consentGivenAt,
+    // consentVersion, withdrawnAt.
+    // -----------------------------------------------------------------------
+    match /deleted_tokens/{tokenId} {
+      allow read, write: if false;
+    }
+
+    // -----------------------------------------------------------------------
+    // drive_mirror/{fileKey} — Drive fileId mapping used by the hard-delete
+    // function to remove mirrored copies. Server-side only.
+    // -----------------------------------------------------------------------
+    match /drive_mirror/{fileKey} {
+      allow read, write: if false;
+    }
+
     // All other collections: not covered by this file.
     // The full rules are in firestore.rules (currently wide-open — see P0-2).
   }
