@@ -1,32 +1,55 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const { google } = require("googleapis");
+const { defineSecret } = require("firebase-functions/params");
 const path = require("path");
 const os = require("os");
 const fs = require("fs");
 
 admin.initializeApp();
 
-// OAuth2 Credentials (EXACTLY from user feedback)
-const CLIENT_ID = "753886667691-8dma9c1hksvcuv9oes26idcsbedo1tdr.apps.googleusercontent.com";
-const CLIENT_SECRET = "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";
-const REFRESH_TOKEN = "1//046GrAJ9r3AyqCgYIARAAGAQSNwF-L9IrmbC-AhOJE0Zx72EP0BCq7YgJLvBHSCM58puMLd559ZDi2WmgxSEWId23v79pLfzwxDo";
-
-const oauth2Client = new google.auth.OAuth2(
-  CLIENT_ID,
-  CLIENT_SECRET,
-  "https://developers.google.com/oauthplayground"
-);
-
-oauth2Client.setCredentials({ refresh_token: REFRESH_TOKEN });
-
-const drive = google.drive({ version: "v3", auth: oauth2Client });
-const ROOT_FOLDER_ID = "1bpGXfiaflHi5b-KRfNdyNS9lB6I9HX-k";
+// ── Secrets ──────────────────────────────────────────────────────────────────
+// OAuth credentials are NEVER hardcoded in source. These SecretParams are read
+// from Google Cloud Secret Manager at runtime and injected only into this
+// function (see the `secrets` array in runWith below).
+//
+// Create/update them once per environment with:
+//   firebase functions:secrets:set GOOGLE_OAUTH_CLIENT_ID
+//   firebase functions:secrets:set GOOGLE_OAUTH_CLIENT_SECRET
+//   firebase functions:secrets:set GOOGLE_DRIVE_REFRESH_TOKEN
+//   firebase functions:secrets:set DRIVE_ROOT_FOLDER_ID
+//
+// Ownership, rotation steps and handover checklist: see CREDENTIALS.md.
+const GOOGLE_OAUTH_CLIENT_ID = defineSecret("GOOGLE_OAUTH_CLIENT_ID");
+const GOOGLE_OAUTH_CLIENT_SECRET = defineSecret("GOOGLE_OAUTH_CLIENT_SECRET");
+const GOOGLE_DRIVE_REFRESH_TOKEN = defineSecret("GOOGLE_DRIVE_REFRESH_TOKEN");
+const DRIVE_ROOT_FOLDER_ID = defineSecret("DRIVE_ROOT_FOLDER_ID");
 
 exports.syncStorageToDrive = functions
-  .runWith({ memory: "512MB", timeoutSeconds: 300 })
+  .runWith({
+    memory: "512MB",
+    timeoutSeconds: 300,
+    secrets: [
+      GOOGLE_OAUTH_CLIENT_ID,
+      GOOGLE_OAUTH_CLIENT_SECRET,
+      GOOGLE_DRIVE_REFRESH_TOKEN,
+      DRIVE_ROOT_FOLDER_ID,
+    ],
+  })
   .storage.object()
   .onFinalize(async (object) => {
+    // Secret values are only readable inside a function invocation.
+    const oauth2Client = new google.auth.OAuth2(
+      GOOGLE_OAUTH_CLIENT_ID.value(),
+      GOOGLE_OAUTH_CLIENT_SECRET.value(),
+      "https://developers.google.com/oauthplayground"
+    );
+    oauth2Client.setCredentials({
+      refresh_token: GOOGLE_DRIVE_REFRESH_TOKEN.value(),
+    });
+    const drive = google.drive({ version: "v3", auth: oauth2Client });
+    const rootFolderId = DRIVE_ROOT_FOLDER_ID.value();
+
     const filePath = object.name;
     const contentType = object.contentType;
 
@@ -46,15 +69,19 @@ exports.syncStorageToDrive = functions
     try {
       // Refresh token validation
       await oauth2Client.getAccessToken();
-      
-      const tokenFolderId = await getOrCreateFolder(`Token_${tokenId}`, ROOT_FOLDER_ID);
-      
+
+      const tokenFolderId = await getOrCreateFolder(
+        drive,
+        `Token_${tokenId}`,
+        rootFolderId
+      );
+
       const bucket = admin.storage().bucket(object.bucket);
       const tempFilePath = path.join(os.tmpdir(), fileName);
       await bucket.file(filePath).download({ destination: tempFilePath });
 
-      const existingFile = await findFileInFolder(fileName, tokenFolderId);
-      
+      const existingFile = await findFileInFolder(drive, fileName, tokenFolderId);
+
       const media = {
         mimeType: contentType,
         body: fs.createReadStream(tempFilePath),
@@ -89,9 +116,21 @@ exports.syncStorageToDrive = functions
     }
   });
 
-async function getOrCreateFolder(folderName, parentId) {
+/**
+ * Escape a value used inside a Google Drive `q` search expression.
+ * Single quotes and backslashes are the only characters that can break out of
+ * the quoted literal, so they are escaped to prevent query injection from
+ * Storage object names (tokens/<tokenId>/<fileName>).
+ */
+function escapeDriveQueryValue(value) {
+  return String(value).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+}
+
+async function getOrCreateFolder(drive, folderName, parentId) {
+  const safeFolderName = escapeDriveQueryValue(folderName);
+  const safeParentId = escapeDriveQueryValue(parentId);
   const response = await drive.files.list({
-    q: `name='${folderName}' and '${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+    q: `name='${safeFolderName}' and '${safeParentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
     fields: "files(id, name)",
     supportsAllDrives: true,
     includeItemsFromAllDrives: true,
@@ -114,9 +153,11 @@ async function getOrCreateFolder(folderName, parentId) {
   return folder.data.id;
 }
 
-async function findFileInFolder(fileName, folderId) {
+async function findFileInFolder(drive, fileName, folderId) {
+  const safeFileName = escapeDriveQueryValue(fileName);
+  const safeFolderId = escapeDriveQueryValue(folderId);
   const response = await drive.files.list({
-    q: `name='${fileName}' and '${folderId}' in parents and trashed=false`,
+    q: `name='${safeFileName}' and '${safeFolderId}' in parents and trashed=false`,
     fields: "files(id, name)",
     supportsAllDrives: true,
     includeItemsFromAllDrives: true,
