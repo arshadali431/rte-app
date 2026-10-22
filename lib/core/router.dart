@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../screens/splash_screen.dart';
 import '../screens/role_selection_screen.dart';
 import '../screens/parent/parent_dashboard_screen.dart';
@@ -7,6 +8,7 @@ import '../screens/parent/token_entry_screen.dart';
 import '../screens/parent/child_profile_screen.dart';
 import '../screens/parent/document_upload_screen.dart';
 import '../screens/parent/application_status_screen.dart';
+import '../screens/parent/consent_screen.dart';
 import '../screens/office/office_dashboard_screen.dart';
 import '../screens/office/new_token_screen.dart';
 import '../screens/office/scan_qr_screen.dart';
@@ -18,6 +20,7 @@ import '../screens/office/analysis_details_screen.dart';
 import '../screens/rte/rte_status_screen.dart';
 import '../screens/maintenance_screen.dart';
 import '../models/token_model.dart';
+import '../services/consent_service.dart';
 
 class AppRouter {
   static final router = GoRouter(
@@ -48,9 +51,21 @@ class AppRouter {
           child: const TokenEntryScreen(),
         ),
       ),
+      // Consent — shown immediately after login, before any data screen.
+      // PopScope(canPop:false) inside the widget also blocks hardware back.
+      GoRoute(
+        path: '/parent/consent',
+        name: 'parent-consent',
+        pageBuilder: (context, state) => _buildPage(
+          state: state,
+          child: const ConsentScreen(),
+        ),
+      ),
       GoRoute(
         path: '/parent/dashboard',
         name: 'parent-dashboard',
+        // Consent guard: redirect to consent if no valid record exists.
+        redirect: (context, state) => _consentGuard(state),
         pageBuilder: (context, state) => _buildPage(
           state: state,
           child: const ParentDashboardScreen(),
@@ -59,6 +74,7 @@ class AppRouter {
       GoRoute(
         path: '/parent/child-profile',
         name: 'child-profile',
+        redirect: (context, state) => _consentGuard(state),
         pageBuilder: (context, state) => _buildPage(
           state: state,
           child: const ChildProfileScreen(),
@@ -67,6 +83,7 @@ class AppRouter {
       GoRoute(
         path: '/parent/documents',
         name: 'parent-documents',
+        redirect: (context, state) => _consentGuard(state),
         pageBuilder: (context, state) => _buildPage(
           state: state,
           child: const DocumentUploadScreen(),
@@ -75,6 +92,7 @@ class AppRouter {
       GoRoute(
         path: '/parent/status',
         name: 'parent-status',
+        redirect: (context, state) => _consentGuard(state),
         pageBuilder: (context, state) {
           final tokenId = state.extra as String;
           return _buildPage(
@@ -120,10 +138,18 @@ class AppRouter {
         path: '/office/generated-token',
         name: 'generated-token',
         pageBuilder: (context, state) {
-          final data = state.extra as Map<String, dynamic>;
+          final raw = state.extra;
+          if (raw is! Map<String, dynamic>) {
+            // Guard: extra missing (hot-restart / deep-link). Show an empty
+            // token card with sensible defaults so nothing crashes.
+            return _buildPage(
+              state: state,
+              child: GeneratedTokenScreen(tokenData: const {}),
+            );
+          }
           return _buildPage(
             state: state,
-            child: GeneratedTokenScreen(tokenData: data),
+            child: GeneratedTokenScreen(tokenData: raw),
           );
         },
       ),
@@ -217,5 +243,30 @@ class AppRouter {
         );
       },
     );
+  }
+
+  /// Consent guard used on every parent data route.
+  ///
+  /// Returns `/parent/consent` if the current subject has no valid consent
+  /// record for [ConsentService.kConsentVersion]. Returns null (allow) otherwise.
+  ///
+  /// Deep links and back-button attempts to skip consent are handled here;
+  /// the ConsentScreen widget also sets PopScope(canPop:false) for defence
+  /// in depth.
+  static Future<String?> _consentGuard(GoRouterState state) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final tokenId = prefs.getString('token_id');
+      if (tokenId == null || tokenId.isEmpty) {
+        // No session at all — let the destination handle it (dashboard shows its own error)
+        return null;
+      }
+      final hasConsent = await ConsentService().hasValidConsent(tokenId);
+      if (!hasConsent) return '/parent/consent';
+      return null; // allow
+    } catch (e) {
+      // On error, allow through — consent screen will show on next attempt
+      return null;
+    }
   }
 }

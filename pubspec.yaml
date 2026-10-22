@@ -34,6 +34,7 @@ dependencies:
   provider: ^6.1.1
   connectivity_plus: ^6.0.0
   image: ^4.8.0
+  crypto: ^3.0.6
 
 dev_dependencies:
   flutter_test:
@@ -45,4 +46,5 @@ flutter:
 
   assets:
     - assets/app_logo.png
+    - assets/legal/
     - google_fonts/
