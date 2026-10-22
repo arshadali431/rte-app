@@ -262,11 +262,62 @@ class _ConsentScreenState extends State<ConsentScreen>
   }
 
   // ---------------------------------------------------------------------------
-  // Hold-to-agree logic
   // ---------------------------------------------------------------------------
+  // Hold-to-agree logic (Pointer-based for instant 0ms touch response)
+  // ---------------------------------------------------------------------------
+
+  void _onPointerDown(PointerDownEvent event) {
+    if (_saving || _disagreeShown) return;
+
+    if (!_scrolledToEnd) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_lang.scrollHint, style: GoogleFonts.outfit()),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          backgroundColor: const Color(0xFF37474F),
+        ),
+      );
+      return;
+    }
+
+    _onHoldStart();
+  }
+
+  void _onPointerUp(PointerUpEvent event) {
+    if (_saving) return;
+
+    final heldMs = _holdStart != null
+        ? DateTime.now().difference(_holdStart!).inMilliseconds
+        : 0;
+
+    _onHoldEnd();
+
+    // If user tapped or released before the 5 seconds, guide them
+    if (heldMs < 5000 && !_saving && _scrolledToEnd) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_lang.holdHint, style: GoogleFonts.outfit()),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          backgroundColor: const Color(0xFF103D35),
+        ),
+      );
+    }
+  }
+
+  void _onPointerCancel(PointerCancelEvent event) {
+    if (_saving) return;
+    _onHoldEnd();
+  }
 
   void _onHoldStart() {
     if (!_scrolledToEnd || _saving) return;
+    HapticFeedback.selectionClick();
     final startTime = DateTime.now();
     setState(() {
       _holding = true;
@@ -292,7 +343,7 @@ class _ConsentScreenState extends State<ConsentScreen>
   }
 
   void _onHoldEnd() {
-    if (!_holding) return;
+    if (!_holding || _saving) return;
     _progressController?.stop();
     setState(() {
       _holding = false;
@@ -315,30 +366,51 @@ class _ConsentScreenState extends State<ConsentScreen>
   }
 
   Future<void> _saveConsent(int holdMs) async {
-    if (_subjectId == null || _consentText == null) return;
+    String subjectId = _subjectId ?? '';
+    if (subjectId.isEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      subjectId = prefs.getString('token_id') ?? 'unknown';
+    }
+
+    String consentText = _consentText ?? '';
+    if (consentText.isEmpty) {
+      try {
+        consentText = await rootBundle.loadString(_lang.assetPath);
+      } catch (e) {
+        debugPrint('[ConsentScreen] Error loading fallback consent text: $e');
+      }
+    }
+
+    if (consentText.isEmpty) {
+      if (!mounted) return;
+      setState(() { _saving = false; _holdProgress = 0; });
+      return;
+    }
 
     final platform = _platformName();
 
     try {
+      debugPrint('[ConsentScreen] Saving consent record for subjectId=$subjectId...');
       await ConsentService().recordConsent(
-        subjectId: _subjectId!,
-        consentText: _consentText!,
+        subjectId: subjectId,
+        consentText: consentText,
         language: _lang.locale,
         appVersion: _appVersion,
         platform: platform,
         holdDurationMs: holdMs,
       );
 
+      debugPrint('[ConsentScreen] Consent record written successfully.');
       if (!mounted) return;
       // Navigate to parent dashboard (replace so back button cannot return here)
       context.go('/parent/dashboard');
-    } catch (e) {
-      debugPrint('[ConsentScreen] saveConsent error: $e');
+    } catch (e, stack) {
+      debugPrint('[ConsentScreen] saveConsent error: $e\n$stack');
       if (!mounted) return;
       setState(() { _saving = false; _holdProgress = 0; });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(_lang.savingError, style: GoogleFonts.outfit()),
+          content: Text('${_lang.savingError} ($e)', style: GoogleFonts.outfit()),
           backgroundColor: const Color(0xFFB3261E),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -544,11 +616,13 @@ class _ConsentScreenState extends State<ConsentScreen>
                   const Icon(Icons.keyboard_arrow_down_rounded,
                       color: _accent, size: 18),
                   const SizedBox(width: 4),
-                  Text(
-                    _lang.scrollHint,
-                    style: GoogleFonts.outfit(
-                        color: Colors.white38, fontSize: 12),
-                    textAlign: TextAlign.center,
+                  Flexible(
+                    child: Text(
+                      _lang.scrollHint,
+                      style: GoogleFonts.outfit(
+                          color: Colors.white38, fontSize: 12),
+                      textAlign: TextAlign.center,
+                    ),
                   ),
                 ],
               ),
@@ -618,6 +692,70 @@ class _ConsentScreenState extends State<ConsentScreen>
 
   // -- Footer with action buttons ---------------------------------------------
 
+  Widget _buildAgreeButtonContent(bool canAgree) {
+    if (_saving) {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            'Saving...',
+            style: GoogleFonts.outfit(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (_holding || (_holdProgress > 0 && _holdProgress < 1)) {
+      final secondsLeft = (5 - (5 * _holdProgress).floor()).clamp(1, 5);
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(
+              value: _holdProgress,
+              strokeWidth: 3,
+              color: Colors.white,
+              backgroundColor: Colors.white30,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            '${_lang.agreeLabel} ($secondsLeft s)',
+            style: GoogleFonts.outfit(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Text(
+      _lang.agreeLabel,
+      style: GoogleFonts.outfit(
+        color: Colors.white,
+        fontSize: 16,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+  }
+
   Widget _buildFooter() {
     final canAgree = _scrolledToEnd && !_saving && !_disagreeShown;
 
@@ -632,16 +770,16 @@ class _ConsentScreenState extends State<ConsentScreen>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Hold-to-agree button
+          // Hold-to-agree button (instant touch response via Listener)
           Semantics(
             label: canAgree
                 ? _lang.holdHint
                 : _lang.scrollHint,
             button: true,
-            child: GestureDetector(
-              onLongPressStart: (_) => _onHoldStart(),
-              onLongPressEnd: (_) => _onHoldEnd(),
-              onLongPressCancel: _onHoldEnd,
+            child: Listener(
+              onPointerDown: _onPointerDown,
+              onPointerUp: _onPointerUp,
+              onPointerCancel: _onPointerCancel,
               child: AnimatedOpacity(
                 opacity: canAgree ? 1.0 : 0.45,
                 duration: const Duration(milliseconds: 300),
@@ -657,40 +795,8 @@ class _ConsentScreenState extends State<ConsentScreen>
                         : null,
                     color: canAgree ? null : Colors.white12,
                   ),
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      // Progress ring
-                      if (_holding || (_holdProgress > 0 && _holdProgress < 1))
-                        SizedBox(
-                          width: 40,
-                          height: 40,
-                          child: CircularProgressIndicator(
-                            value: _holdProgress,
-                            strokeWidth: 3,
-                            color: Colors.white,
-                            backgroundColor: Colors.white24,
-                          ),
-                        ),
-                      if (!_holding || _holdProgress == 0)
-                        _saving
-                            ? const SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.5,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : Text(
-                                _lang.agreeLabel,
-                                style: GoogleFonts.outfit(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                    ],
+                  child: Center(
+                    child: _buildAgreeButtonContent(canAgree),
                   ),
                 ),
               ),
